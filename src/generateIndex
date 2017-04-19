@@ -1,4 +1,4 @@
-file="kriss_feed.php"
+file="feedController.php"
 n=$(\grep "function __autoload" ${file} -n | cut -d ":" -f 1)
 nt=$(cat ${file} | wc -l)
 
