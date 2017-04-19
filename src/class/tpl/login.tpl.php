@@ -10,7 +10,7 @@
           <div id="login">
             <form class="form-horizontal" method="post" action="?login" name="loginform">
               <fieldset>
-                <legend>Welcome to LIGHT feed reader</legend>
+                <legend>Welcome to light feed reader</legend>
                 <div class="control-group">
                   <label class="control-label" for="login">Login</label>
                   <div class="controls">

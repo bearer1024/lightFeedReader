@@ -10,7 +10,7 @@
           <div id="install">
             <form class="form-horizontal" method="post" action="" name="installform">
               <fieldset>
-                <legend>LIGHT feed installation</legend>
+                <legend>light feed installation</legend>
                 <div class="control-group">
                   <label class="control-label" for="setlogin">Login</label>
                   <div class="controls">

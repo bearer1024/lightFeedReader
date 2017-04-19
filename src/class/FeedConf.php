@@ -1,6 +1,6 @@
 <?php
 /**
- * Feed Conf is a class to configurate Feed reader.
+ * Feed Conf is a class to configurate the light feed reader.
  */
 class FeedConf
 {

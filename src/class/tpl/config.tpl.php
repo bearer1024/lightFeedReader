@@ -73,7 +73,7 @@
                   </div>
                 </fieldset>
                 <fieldset>
-                  <legend>LIGHT feed reader preferences</legend>
+                  <legend>light feed reader preferences</legend>
 
                   <div class="control-group">
                     <label class="control-label" for="maxItems">Maximum number of items by feed</label>
