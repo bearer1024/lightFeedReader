@@ -1,8 +1,8 @@
 <?php
 $this->login = "test";
-$this->hash = "5f2c542196fc065bcc926856bfe94be653f9a91c";
-$this->salt = "7078bed66906163071878806fe2ec1e5cefef399";
-$this->title = "Kriss feed";
+$this->hash = "8cc1bfdc75a14f28c74cba3c06bfbe1459172c24";
+$this->salt = "f61cf526eacab62dbf20c062f5fb3afa8c6a15f6";
+$this->title = "Light feed reader";
 $this->redirector = "";
 $this->shaarli = "";
 $this->byPage = "10";

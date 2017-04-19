@@ -161,7 +161,7 @@ class FeedConf
      * Constructor
      *
      * @param string    $configFile Configuration file
-     * @param string    $version    Kriss feed version
+     * @param string    $version    Light feed version
      */
     public function __construct($configFile, $version)
     {
