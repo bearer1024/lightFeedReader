@@ -85,7 +85,7 @@ class FeedPage
     {
         extract(FeedPage::$var);
 ?>
-<?php include("tpl/config.tpl.php"); ?>
+<?php //include("tpl/config.tpl.php"); ?>
 <?php
     }
 

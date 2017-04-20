@@ -1525,7 +1525,7 @@
   }
 
   /**
-   * init KrISS feed javascript
+   * init light feed feed javascript
    */
   function initUnread() {
     var element = document.getElementById('nb-unread');
@@ -1666,7 +1666,7 @@
     }
   }
 
-  // when document is loaded init KrISS feed
+  // when document is loaded init light feed feed
   if (document.getElementById && document.createTextNode) {
     addEvent(window, 'load', initKF);
   }
