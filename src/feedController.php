@@ -78,11 +78,7 @@ function grabFavicon($url, $feedHash){
     }
 }
 
-/**
- * autoload class
- *
- * @param string $className The name of the class to load
- */
+
 function __autoload($className)
 {
     include_once 'class/'. $className . '.php';

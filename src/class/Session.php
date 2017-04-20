@@ -20,10 +20,6 @@
  *   to sign forms (HMAC) (See $_SESSION['uid'] )
  * - Token management to prevent XSRF attacks.
  *
- * TODO:
- * - log login fail
- *
- * HOWTOUSE:
  * - Just call Session::init(); to initialize session and
  *   check if connected with Session::isLogged()
  */

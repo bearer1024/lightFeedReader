@@ -19,7 +19,7 @@ class Feed
     /**
      * Feed_Conf object
      */
-    public $kfc;
+    public $lfc;
 
     /**
      * Array with data
@@ -30,11 +30,11 @@ class Feed
      * constructor
      *
      * @param string    $dataFile File to store feed data
-     * @param Feed_Conf $kfc      Object corresponding to feed reader config
+     * @param Feed_Conf $lfc      Object corresponding to feed reader config
      */
-    public function __construct($dataFile, $cacheDir, $kfc)
+    public function __construct($dataFile, $cacheDir, $lfc)
     {
-        $this->kfc = $kfc;
+        $this->lfc = $lfc;
         $this->dataFile = $dataFile;
         $this->cacheDir = $cacheDir;
     }
@@ -89,7 +89,7 @@ class Feed
                         'lastUpdate' => 0,
                         'nbUnread' => 0,
                         'nbAll' => 0,
-                        'htmlUrl' => 'https://www.linux.com/tutorials',
+                        'htmlUrl' => 'https://www.linux.com/feeds/tutorials/rss',
                         'xmlUrl' => 'https://www.linux.com/feeds/tutorials/rss',
                         'description' => 'tutorials from linux.com'));
                 $this->_data['folders'] = array();
@@ -111,7 +111,7 @@ class Feed
      */
     public function writeData()
     {
-        if (Session::isLogged() || (isset($_GET['cron']) && $_GET['cron'] === sha1($this->kfc->salt.$this->kfc->hash))) {
+        if (Session::isLogged() || (isset($_GET['cron']) && $_GET['cron'] === sha1($this->lfc->salt.$this->lfc->hash))) {
             $write = @file_put_contents(
                 $this->dataFile,
                 PHPPREFIX
@@ -291,7 +291,7 @@ class Feed
                     $this->_data['feeds'][$feedHash]['timeUpdate'] = $timeUpdate;
                 } else {
                     $this->_data['feeds'][$feedHash]['timeUpdate'] = (int) $timeUpdate;
-                    $maxUpdate = $this->kfc->maxUpdate;
+                    $maxUpdate = $this->lfc->maxUpdate;
                     if ($this->_data['feeds'][$feedHash]['timeUpdate'] < MIN_TIME_UPDATE
                         || $this->_data['feeds'][$feedHash]['timeUpdate'] > $maxUpdate
                     ) {
@@ -332,7 +332,7 @@ class Feed
      */
     public function writeFeed($feedHash, $feed)
     {
-        if (Session::isLogged() || (isset($_GET['cron']) && $_GET['cron'] === sha1($this->kfc->salt.$this->kfc->hash))) {
+        if (Session::isLogged() || (isset($_GET['cron']) && $_GET['cron'] === sha1($this->lfc->salt.$this->lfc->hash))) {
             if (!is_dir($this->cacheDir)) {
                 if (!@mkdir($this->cacheDir, 0755)) {
                     die("Can not create cache dir: ".$this->cacheDir);
@@ -685,18 +685,18 @@ class Feed
      */
     public function updateItems()
     {
-        if (isset($this->_data['needSort']) or (isset($this->_data['order']) and $this->_data['order'] != $this->kfc->order)) {
+        if (isset($this->_data['needSort']) or (isset($this->_data['order']) and $this->_data['order'] != $this->lfc->order)) {
             unset($this->_data['needSort']);
 
             $this->_data['items'] = $this->_data['items']+$this->_data['newItems'];
             $this->_data['newItems'] = array();
             // sort items
-            if ($this->kfc->order === 'newerFirst') {
+            if ($this->lfc->order === 'newerFirst') {
                 arsort($this->_data['items']);
             } else {
                 asort($this->_data['items']);
             }
-            $this->_data['order'] = $this->kfc->order;
+            $this->_data['order'] = $this->lfc->order;
 
             return true;
         }
@@ -1069,7 +1069,7 @@ class Feed
         $opts = array(
             'http' => array(
                 'timeout' => 4,
-                'user_agent' => 'KrISS feed agent '.$this->kfc->version.' by Tontof.net http://github.com/tontof/kriss_feed',
+                'user_agent' => 'KrISS feed agent '.$this->lfc->version.' by Tontof.net http://github.com/tontof/kriss_feed',
                 )
             );
         $document = new DOMDocument();
@@ -1164,12 +1164,12 @@ class Feed
         $max = $feed['timeUpdate'];
 
         if ($max == 'auto') {
-            $max = $this->kfc->maxUpdate;
+            $max = $this->lfc->maxUpdate;
         } elseif ($max == 'max') {
-            $max = $this->kfc->maxUpdate;
+            $max = $this->lfc->maxUpdate;
         } elseif ((int) $max < MIN_TIME_UPDATE
-                  || (int) $max > $this->kfc->maxUpdate) {
-            $max = $this->kfc->maxUpdate;
+                  || (int) $max > $this->lfc->maxUpdate) {
+            $max = $this->lfc->maxUpdate;
         }
 
         return (int) $max;
@@ -1267,7 +1267,7 @@ class Feed
             $oldItems = $this->_data['feeds'][$feedHash]['items'];
 
             $rssItems = $this->getItemsFromXml($xml);
-            $rssItems = array_slice($rssItems, 0, $this->kfc->maxItems, true);
+            $rssItems = array_slice($rssItems, 0, $this->lfc->maxItems, true);
             $rssItemsHash = array_keys($rssItems);
 
             if (count($rssItemsHash) !== 0) {
@@ -1319,14 +1319,14 @@ class Feed
 
                 // Check if quota exceeded
                 $nbAll = count($this->_data['feeds'][$feedHash]['items']);
-                if ($nbAll > $this->kfc->maxItems) {
+                if ($nbAll > $this->lfc->maxItems) {
                     $this->_data['feeds'][$feedHash]['items']
                         = array_slice(
                             $this->_data['feeds'][$feedHash]['items'],
                             0,
-                            $this->kfc->maxItems, true
+                            $this->lfc->maxItems, true
                             );
-                    $nbAll = $this->kfc->maxItems;
+                    $nbAll = $this->lfc->maxItems;
                 }
 
                 // Update items list and feed information (nbUnread, nbAll)
@@ -1377,12 +1377,12 @@ class Feed
                 unset($_SESSION['lastNewItemsHash']);
             }
 
-            if ($this->kfc->order === 'newerFirst') {
+            if ($this->lfc->order === 'newerFirst') {
                 arsort($this->_data['newItems']);
             } else {
                 asort($this->_data['newItems']);
             }
-            $this->_data['order'] = $this->kfc->order;
+            $this->_data['order'] = $this->lfc->order;
 
             $this->writeData();
         }

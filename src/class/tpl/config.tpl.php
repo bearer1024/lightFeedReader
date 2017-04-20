@@ -183,7 +183,7 @@
                   </div>
                 </fieldset>
                 <fieldset>
-                  <legend>KrISS feed menu preferences</legend>
+                  <legend>light feed menu preferences</legend>
                   You can order or remove elements in the menu. Set a position or leave empty if you don't want the element to appear in the menu.
                   <div class="control-group">
                     <label class="control-label" for="menuView">View</label>
@@ -263,7 +263,7 @@
                   </div>
                 </fieldset>
                 <fieldset>
-                  <legend>KrISS feed paging menu preferences</legend>
+                  <legend>light feed paging menu preferences</legend>
                   <div class="control-group">
                     <label class="control-label" for="pagingItem">Item</label>
                     <div class="controls">

@@ -1,7 +1,7 @@
 <?php
 $this->login = "test";
-$this->hash = "8cc1bfdc75a14f28c74cba3c06bfbe1459172c24";
-$this->salt = "f61cf526eacab62dbf20c062f5fb3afa8c6a15f6";
+$this->hash = "5da5a5e8fcddf201b65df91eb3e0657f138cdf4f";
+$this->salt = "4308574ce757117f929a3f63f99741facdef80d8";
 $this->title = "Light feed reader";
 $this->redirector = "";
 $this->shaarli = "";
