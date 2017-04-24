@@ -37,7 +37,7 @@ class MyTool
             $_GET = array_map('stripslashesDeep', $_GET);
             $_COOKIE = array_map('stripslashesDeep', $_COOKIE);
         }
-
+        //Turn on output buffering
         ob_start();
         register_shutdown_function('ob_end_flush');
     }

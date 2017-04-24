@@ -97,7 +97,7 @@ if (!empty($_POST)) {
 unset($_SESSION['tokens']);
 
 $pb = new PageBuilder('FeedPage');
-$kfp = new FeedPage(STYLE_FILE);
+$lfp = new FeedPage(STYLE_FILE);
 $lfc = new FeedConf(CONFIG_FILE, FEED_VERSION);
 $lf = new Feed(DATA_FILE, CACHE_DIR, $lfc);
 

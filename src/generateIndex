@@ -9,7 +9,7 @@ function removeComments {
 delim1="<\?php include\(\""
 delim2="\"); \?>"
 
-# Thanks Fred 
+
 function includeFile {
   while IFS='' read -r line
   do
