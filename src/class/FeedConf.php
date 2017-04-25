@@ -101,7 +101,7 @@ class FeedConf
     public $public = false;
 
     /**
-     * Kriss_feed version
+     * light_feed version
      */
     public $version;
 
