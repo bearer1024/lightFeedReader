@@ -1,15 +1,17 @@
 <?php
-// kriss_feed simple and smart (or stupid) feed reader
-// 2012 - Copyleft - Tontof - http://tontof.net
-// use KrISS feed at your own risk
+// light feed reader
 define('DATA_DIR', 'data');
+define('INC_DIR', 'inc');
 define('CACHE_DIR', DATA_DIR.'/cache');
+define('FAVICON_DIR', INC_DIR.'/favicon');
 
 define('DATA_FILE', DATA_DIR.'/data.php');
 define('CONFIG_FILE', DATA_DIR.'/config.php');
 define('STYLE_FILE', 'style.css');
 
-define('FEED_VERSION', 5);
+define('BAN_FILE', DATA_DIR.'/ipbans.php');
+
+define('FEED_VERSION', 1.0);
 
 define('PHPPREFIX', '<?php /* '); // Prefix to encapsulate data in php code.
 define('PHPSUFFIX', ' */ ?>'); // Suffix to encapsulate data in php code.
@@ -20,6 +22,62 @@ define('ERROR_NO_ERROR', 0);
 define('ERROR_NO_XML', 1);
 define('ERROR_ITEMS_MISSED', 2);
 define('ERROR_LAST_UPDATE', 3);
+define('ERROR_UNKNOWN', 4);
+
+// fix some warning
+date_default_timezone_set('Europe/London');
+
+if (!is_dir(DATA_DIR)) {
+    if (!@mkdir(DATA_DIR, 0755)) {
+        echo '
+<script>
+ alert("Error: can not create '.DATA_DIR.' directory, check permissions");
+ document.location=window.location.href;
+</script>';
+        exit();
+    }
+    @chmod(DATA_DIR, 0755);
+    if (!is_file(DATA_DIR.'/.htaccess')) {
+        if (!@file_put_contents(
+                DATA_DIR.'/.htaccess',
+                "Allow from none\nDeny from all\n"
+                )) {
+            echo '
+<script>
+ alert("Can not protect '.DATA_DIR.'");
+ document.location=window.location.href;
+</script>';
+            exit();
+        }
+    }
+}
+
+/* function grabFavicon */
+function grabFavicon($url, $feedHash){
+    $url = 'http://getfavicon.appspot.com/'.$url.'?defaulticon=bluepng';
+    $file = FAVICON_DIR.'/favicon.'.$feedHash.'.ico';
+
+    if(!file_exists($file) && in_array('curl', get_loaded_extensions()) && Session::isLogged()){
+        $ch = curl_init ($url);
+        curl_setopt($ch, CURLOPT_HEADER, false);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_BINARYTRANSFER, true);
+        $raw = curl_exec($ch);
+        if (curl_getinfo($ch, CURLINFO_HTTP_CODE) == 200) {
+            $fp = fopen($file, 'x');
+            fwrite($fp, $raw);
+            fclose($fp);
+        }
+        curl_close ($ch);
+    }
+
+    if (file_exists($file)) {
+        return $file;
+    } else {
+        return $url;
+    }
+}
+
 
 
 class FeedConf
@@ -30,9 +88,11 @@ class FeedConf
 
     public $hash = '';
 
+    public $disableSessionProtection = false;
+
     public $salt = '';
 
-    public $title = "Kriss feed";
+    public $title = "Light feed reader";
 
     public $redirector = '';
 
@@ -55,6 +115,8 @@ class FeedConf
     public $autohide = false;
 
     public $autofocus = true;
+
+    public $addFavicon = false;
 
     public $public = false;
 
@@ -86,6 +148,7 @@ class FeedConf
     public $pagingItem = 1;
     public $pagingPage = 2;
     public $pagingByPage = 3;
+    public $pagingMarkAs = 4;
 
     public function __construct($configFile, $version)
     {
@@ -97,6 +160,22 @@ class FeedConf
             include_once $this->_file;
         } else {
             $this->_install();
+        }
+
+        Session::$disableSessionProtection = $this->disableSessionProtection;
+
+        if ($this->addFavicon) {
+            /* favicon dir */
+            if (!is_dir(INC_DIR)) {
+                if (!@mkdir(INC_DIR, 0755)) {
+                    die("Can not create inc dir: ".INC_DIR);
+                }
+            }
+            if (!is_dir(FAVICON_DIR)) {
+                if (!@mkdir(FAVICON_DIR, 0755)) {
+                    die("Can not create inc dir: ".FAVICON_DIR);
+                }
+            }
         }
 
         if (Session::isLogged()) {
@@ -146,35 +225,10 @@ class FeedConf
             $this->setLogin($_POST['setlogin']);
             $this->setHash($_POST['setpassword']);
 
-            if (!is_dir(DATA_DIR)) {
-                if (!@mkdir(DATA_DIR, 0755)) {
-                    echo '
-<script>
- alert("Error: can not create '.DATA_DIR.' directory, check permissions");
- document.location=window.location.href;
-</script>';
-                    exit();
-                }
-                @chmod(DATA_DIR, 0755);
-                if (!is_file(DATA_DIR.'/.htaccess')) {
-                    if (!@file_put_contents(
-                        DATA_DIR.'/.htaccess',
-                        "Allow from none\nDeny from all\n"
-                    )) {
-                        echo '
-<script>
- alert("Can not protect '.DATA_DIR.'");
- document.location=window.location.href;
-</script>';
-                        exit();
-                    }
-                }
-            }
-
             if ($this->write()) {
                 echo '
 <script>
- alert("Your simple and smart (or stupid) feed reader is now configured.");
+ alert("Your Light Feed Reader is now configured.");
  document.location="'.MyTool::getUrl().'?import'.'";
 </script>';
                     exit();
@@ -191,7 +245,7 @@ class FeedConf
             FeedPage::init(
                 array(
                     'version' => $this->version,
-                    'pagetitle' => 'KrISS feed installation'
+                    'pagetitle' => 'LIGHT feed installation'
                 )
             );
             FeedPage::installTpl();
@@ -300,7 +354,7 @@ class FeedConf
     {
         $currentHash = $this->currentHash;
         if (isset($_GET['currentHash'])) {
-            $currentHash = substr(trim($_GET['currentHash'], '/'), 0, 6);
+            $currentHash = preg_replace('/[^a-zA-Z0-9-_@]/', '', substr(trim($_GET['currentHash'], '/'), 0, 6));
         }
 
         if (empty($currentHash)) {
@@ -325,6 +379,11 @@ class FeedConf
         }
 
         return $currentPage;
+    }
+
+    public function setDisableSessionProtection($disableSessionProtection)
+    {
+        $this->disableSessionProtection = $disableSessionProtection;
     }
 
     public function setLogin($login)
@@ -385,6 +444,11 @@ class FeedConf
     public function setAutofocus($autofocus)
     {
         $this->autofocus = $autofocus;
+    }
+
+    public function setAddFavicon($addFavicon)
+    {
+        $this->addFavicon = $addFavicon;
     }
 
     public function setShaarli($url)
@@ -460,6 +524,9 @@ class FeedConf
         if ($this->pagingByPage != 0) {
             $paging['pagingByPage'] = $this->pagingByPage;
         }
+        if ($this->pagingMarkAs != 0) {
+            $paging['pagingMarkAs'] = $this->pagingMarkAs;
+        }
 
         asort($paging);
 
@@ -531,6 +598,11 @@ class FeedConf
         $this->pagingByPage = $pagingByPage;
     }
 
+    public function setPagingMarkAs($pagingMarkAs)
+    {
+        $this->pagingMarkAs = $pagingMarkAs;
+    }
+
     public function write()
     {
         $data = array('login', 'hash', 'salt', 'title', 'redirector', 'shaarli',
@@ -539,7 +611,8 @@ class FeedConf
                       'autohide', 'autofocus', 'listFeeds', 'autoUpdate', 'menuView',
                       'menuListFeeds', 'menuFilter', 'menuOrder', 'menuUpdate',
                       'menuRead', 'menuUnread', 'menuEdit', 'menuAdd', 'menuHelp',
-                      'pagingItem', 'pagingPage', 'pagingByPage');
+                      'pagingItem', 'pagingPage', 'pagingByPage', 'addFavicon',
+                      'pagingMarkAs', 'disableSessionProtection');
         $out = '<?php';
         $out .= "\n";
 
@@ -563,7 +636,7 @@ class FeedPage
     public static $var = array();
     private static $_instance;
 
-    public function init($var)
+    public static function init($var)
     {
         FeedPage::$var = $var;
     }
@@ -600,8 +673,7 @@ class FeedPage
  */.clearfix{*zoom:1}.clearfix:before,.clearfix:after{display:table;line-height:0;content:""}.clearfix:after{clear:both}.hide-text{font:0/0 a;color:transparent;text-shadow:none;background-color:transparent;border:0}.input-block-level{display:block;width:100%;min-height:30px;-webkit-box-sizing:border-box;-moz-box-sizing:border-box;box-sizing:border-box}@-ms-viewport{width:device-width}.hidden{display:none;visibility:hidden}.visible-phone{display:none!important}.visible-tablet{display:none!important}.hidden-desktop{display:none!important}.visible-desktop{display:inherit!important}@media(min-width:768px) and (max-width:979px){.hidden-desktop{display:inherit!important}.visible-desktop{display:none!important}.visible-tablet{display:inherit!important}.hidden-tablet{display:none!important}}@media(max-width:767px){.hidden-desktop{display:inherit!important}.visible-desktop{display:none!important}.visible-phone{display:inherit!important}.hidden-phone{display:none!important}}.visible-print{display:none!important}@media print{.visible-print{display:inherit!important}.hidden-print{display:none!important}}@media(min-width:1200px){.row{margin-left:-30px;*zoom:1}.row:before,.row:after{display:table;line-height:0;content:""}.row:after{clear:both}[class*="span"]{float:left;min-height:1px;margin-left:30px}.container,.navbar-static-top .container,.navbar-fixed-top .container,.navbar-fixed-bottom .container{width:1170px}.span12{width:1170px}.span11{width:1070px}.span10{width:970px}.span9{width:870px}.span8{width:770px}.span7{width:670px}.span6{width:570px}.span5{width:470px}.span4{width:370px}.span3{width:270px}.span2{width:170px}.span1{width:70px}.offset12{margin-left:1230px}.offset11{margin-left:1130px}.offset10{margin-left:1030px}.offset9{margin-left:930px}.offset8{margin-left:830px}.offset7{margin-left:730px}.offset6{margin-left:630px}.offset5{margin-left:530px}.offset4{margin-left:430px}.offset3{margin-left:330px}.offset2{margin-left:230px}.offset1{margin-left:130px}.row-fluid{width:100%;*zoom:1}.row-fluid:before,.row-fluid:after{display:table;line-height:0;content:""}.row-fluid:after{clear:both}.row-fluid [class*="span"]{display:block;float:left;width:100%;min-height:30px;margin-left:2.564102564102564%;*margin-left:2.5109110747408616%;-webkit-box-sizing:border-box;-moz-box-sizing:border-box;box-sizing:border-box}.row-fluid [class*="span"]:first-child{margin-left:0}.row-fluid .controls-row [class*="span"]+[class*="span"]{margin-left:2.564102564102564%}.row-fluid .span12{width:100%;*width:99.94680851063829%}.row-fluid .span11{width:91.45299145299145%;*width:91.39979996362975%}.row-fluid .span10{width:82.90598290598291%;*width:82.8527914166212%}.row-fluid .span9{width:74.35897435897436%;*width:74.30578286961266%}.row-fluid .span8{width:65.81196581196582%;*width:65.75877432260411%}.row-fluid .span7{width:57.26495726495726%;*width:57.21176577559556%}.row-fluid .span6{width:48.717948717948715%;*width:48.664757228587014%}.row-fluid .span5{width:40.17094017094017%;*width:40.11774868157847%}.row-fluid .span4{width:31.623931623931625%;*width:31.570740134569924%}.row-fluid .span3{width:23.076923076923077%;*width:23.023731587561375%}.row-fluid .span2{width:14.52991452991453%;*width:14.476723040552828%}.row-fluid .span1{width:5.982905982905983%;*width:5.929714493544281%}.row-fluid .offset12{margin-left:105.12820512820512%;*margin-left:105.02182214948171%}.row-fluid .offset12:first-child{margin-left:102.56410256410257%;*margin-left:102.45771958537915%}.row-fluid .offset11{margin-left:96.58119658119658%;*margin-left:96.47481360247316%}.row-fluid .offset11:first-child{margin-left:94.01709401709402%;*margin-left:93.91071103837061%}.row-fluid .offset10{margin-left:88.03418803418803%;*margin-left:87.92780505546462%}.row-fluid .offset10:first-child{margin-left:85.47008547008548%;*margin-left:85.36370249136206%}.row-fluid .offset9{margin-left:79.48717948717949%;*margin-left:79.38079650845607%}.row-fluid .offset9:first-child{margin-left:76.92307692307693%;*margin-left:76.81669394435352%}.row-fluid .offset8{margin-left:70.94017094017094%;*margin-left:70.83378796144753%}.row-fluid .offset8:first-child{margin-left:68.37606837606839%;*margin-left:68.26968539734497%}.row-fluid .offset7{margin-left:62.393162393162385%;*margin-left:62.28677941443899%}.row-fluid .offset7:first-child{margin-left:59.82905982905982%;*margin-left:59.72267685033642%}.row-fluid .offset6{margin-left:53.84615384615384%;*margin-left:53.739770867430444%}.row-fluid .offset6:first-child{margin-left:51.28205128205128%;*margin-left:51.175668303327875%}.row-fluid .offset5{margin-left:45.299145299145295%;*margin-left:45.1927623204219%}.row-fluid .offset5:first-child{margin-left:42.73504273504273%;*margin-left:42.62865975631933%}.row-fluid .offset4{margin-left:36.75213675213675%;*margin-left:36.645753773413354%}.row-fluid .offset4:first-child{margin-left:34.18803418803419%;*margin-left:34.081651209310785%}.row-fluid .offset3{margin-left:28.205128205128204%;*margin-left:28.0987452264048%}.row-fluid .offset3:first-child{margin-left:25.641025641025642%;*margin-left:25.53464266230224%}.row-fluid .offset2{margin-left:19.65811965811966%;*margin-left:19.551736679396257%}.row-fluid .offset2:first-child{margin-left:17.094017094017094%;*margin-left:16.98763411529369%}.row-fluid .offset1{margin-left:11.11111111111111%;*margin-left:11.004728132387708%}.row-fluid .offset1:first-child{margin-left:8.547008547008547%;*margin-left:8.440625568285142%}input,textarea,.uneditable-input{margin-left:0}.controls-row [class*="span"]+[class*="span"]{margin-left:30px}input.span12,textarea.span12,.uneditable-input.span12{width:1156px}input.span11,textarea.span11,.uneditable-input.span11{width:1056px}input.span10,textarea.span10,.uneditable-input.span10{width:956px}input.span9,textarea.span9,.uneditable-input.span9{width:856px}input.span8,textarea.span8,.uneditable-input.span8{width:756px}input.span7,textarea.span7,.uneditable-input.span7{width:656px}input.span6,textarea.span6,.uneditable-input.span6{width:556px}input.span5,textarea.span5,.uneditable-input.span5{width:456px}input.span4,textarea.span4,.uneditable-input.span4{width:356px}input.span3,textarea.span3,.uneditable-input.span3{width:256px}input.span2,textarea.span2,.uneditable-input.span2{width:156px}input.span1,textarea.span1,.uneditable-input.span1{width:56px}.thumbnails{margin-left:-30px}.thumbnails>li{margin-left:30px}.row-fluid .thumbnails{margin-left:0}}@media(min-width:768px) and (max-width:979px){.row{margin-left:-20px;*zoom:1}.row:before,.row:after{display:table;line-height:0;content:""}.row:after{clear:both}[class*="span"]{float:left;min-height:1px;margin-left:20px}.container,.navbar-static-top .container,.navbar-fixed-top .container,.navbar-fixed-bottom .container{width:724px}.span12{width:724px}.span11{width:662px}.span10{width:600px}.span9{width:538px}.span8{width:476px}.span7{width:414px}.span6{width:352px}.span5{width:290px}.span4{width:228px}.span3{width:166px}.span2{width:104px}.span1{width:42px}.offset12{margin-left:764px}.offset11{margin-left:702px}.offset10{margin-left:640px}.offset9{margin-left:578px}.offset8{margin-left:516px}.offset7{margin-left:454px}.offset6{margin-left:392px}.offset5{margin-left:330px}.offset4{margin-left:268px}.offset3{margin-left:206px}.offset2{margin-left:144px}.offset1{margin-left:82px}.row-fluid{width:100%;*zoom:1}.row-fluid:before,.row-fluid:after{display:table;line-height:0;content:""}.row-fluid:after{clear:both}.row-fluid [class*="span"]{display:block;float:left;width:100%;min-height:30px;margin-left:2.7624309392265194%;*margin-left:2.709239449864817%;-webkit-box-sizing:border-box;-moz-box-sizing:border-box;box-sizing:border-box}.row-fluid [class*="span"]:first-child{margin-left:0}.row-fluid .controls-row [class*="span"]+[class*="span"]{margin-left:2.7624309392265194%}.row-fluid .span12{width:100%;*width:99.94680851063829%}.row-fluid .span11{width:91.43646408839778%;*width:91.38327259903608%}.row-fluid .span10{width:82.87292817679558%;*width:82.81973668743387%}.row-fluid .span9{width:74.30939226519337%;*width:74.25620077583166%}.row-fluid .span8{width:65.74585635359117%;*width:65.69266486422946%}.row-fluid .span7{width:57.18232044198895%;*width:57.12912895262725%}.row-fluid .span6{width:48.61878453038674%;*width:48.56559304102504%}.row-fluid .span5{width:40.05524861878453%;*width:40.00205712942283%}.row-fluid .span4{width:31.491712707182323%;*width:31.43852121782062%}.row-fluid .span3{width:22.92817679558011%;*width:22.87498530621841%}.row-fluid .span2{width:14.3646408839779%;*width:14.311449394616199%}.row-fluid .span1{width:5.801104972375691%;*width:5.747913483013988%}.row-fluid .offset12{margin-left:105.52486187845304%;*margin-left:105.41847889972962%}.row-fluid .offset12:first-child{margin-left:102.76243093922652%;*margin-left:102.6560479605031%}.row-fluid .offset11{margin-left:96.96132596685082%;*margin-left:96.8549429881274%}.row-fluid .offset11:first-child{margin-left:94.1988950276243%;*margin-left:94.09251204890089%}.row-fluid .offset10{margin-left:88.39779005524862%;*margin-left:88.2914070765252%}.row-fluid .offset10:first-child{margin-left:85.6353591160221%;*margin-left:85.52897613729868%}.row-fluid .offset9{margin-left:79.8342541436464%;*margin-left:79.72787116492299%}.row-fluid .offset9:first-child{margin-left:77.07182320441989%;*margin-left:76.96544022569647%}.row-fluid .offset8{margin-left:71.2707182320442%;*margin-left:71.16433525332079%}.row-fluid .offset8:first-child{margin-left:68.50828729281768%;*margin-left:68.40190431409427%}.row-fluid .offset7{margin-left:62.70718232044199%;*margin-left:62.600799341718584%}.row-fluid .offset7:first-child{margin-left:59.94475138121547%;*margin-left:59.838368402492065%}.row-fluid .offset6{margin-left:54.14364640883978%;*margin-left:54.037263430116376%}.row-fluid .offset6:first-child{margin-left:51.38121546961326%;*margin-left:51.27483249088986%}.row-fluid .offset5{margin-left:45.58011049723757%;*margin-left:45.47372751851417%}.row-fluid .offset5:first-child{margin-left:42.81767955801105%;*margin-left:42.71129657928765%}.row-fluid .offset4{margin-left:37.01657458563536%;*margin-left:36.91019160691196%}.row-fluid .offset4:first-child{margin-left:34.25414364640884%;*margin-left:34.14776066768544%}.row-fluid .offset3{margin-left:28.45303867403315%;*margin-left:28.346655695309746%}.row-fluid .offset3:first-child{margin-left:25.69060773480663%;*margin-left:25.584224756083227%}.row-fluid .offset2{margin-left:19.88950276243094%;*margin-left:19.783119783707537%}.row-fluid .offset2:first-child{margin-left:17.12707182320442%;*margin-left:17.02068884448102%}.row-fluid .offset1{margin-left:11.32596685082873%;*margin-left:11.219583872105325%}.row-fluid .offset1:first-child{margin-left:8.56353591160221%;*margin-left:8.457152932878806%}input,textarea,.uneditable-input{margin-left:0}.controls-row [class*="span"]+[class*="span"]{margin-left:20px}input.span12,textarea.span12,.uneditable-input.span12{width:710px}input.span11,textarea.span11,.uneditable-input.span11{width:648px}input.span10,textarea.span10,.uneditable-input.span10{width:586px}input.span9,textarea.span9,.uneditable-input.span9{width:524px}input.span8,textarea.span8,.uneditable-input.span8{width:462px}input.span7,textarea.span7,.uneditable-input.span7{width:400px}input.span6,textarea.span6,.uneditable-input.span6{width:338px}input.span5,textarea.span5,.uneditable-input.span5{width:276px}input.span4,textarea.span4,.uneditable-input.span4{width:214px}input.span3,textarea.span3,.uneditable-input.span3{width:152px}input.span2,textarea.span2,.uneditable-input.span2{width:90px}input.span1,textarea.span1,.uneditable-input.span1{width:28px}}@media(max-width:767px){body{padding-right:20px;padding-left:20px}.navbar-fixed-top,.navbar-fixed-bottom,.navbar-static-top{margin-right:-20px;margin-left:-20px}.container-fluid{padding:0}.dl-horizontal dt{float:none;width:auto;clear:none;text-align:left}.dl-horizontal dd{margin-left:0}.container{width:auto}.row-fluid{width:100%}.row,.thumbnails{margin-left:0}.thumbnails>li{float:none;margin-left:0}[class*="span"],.uneditable-input[class*="span"],.row-fluid [class*="span"]{display:block;float:none;width:100%;margin-left:0;-webkit-box-sizing:border-box;-moz-box-sizing:border-box;box-sizing:border-box}.span12,.row-fluid .span12{width:100%;-webkit-box-sizing:border-box;-moz-box-sizing:border-box;box-sizing:border-box}.row-fluid [class*="offset"]:first-child{margin-left:0}.input-large,.input-xlarge,.input-xxlarge,input[class*="span"],select[class*="span"],textarea[class*="span"],.uneditable-input{display:block;width:100%;min-height:30px;-webkit-box-sizing:border-box;-moz-box-sizing:border-box;box-sizing:border-box}.input-prepend input,.input-append input,.input-prepend input[class*="span"],.input-append input[class*="span"]{display:inline-block;width:auto}.controls-row [class*="span"]+[class*="span"]{margin-left:0}.modal{position:fixed;top:20px;right:20px;left:20px;width:auto;margin:0}.modal.fade{top:-100px}.modal.fade.in{top:20px}}@media(max-width:480px){.nav-collapse{-webkit-transform:translate3d(0,0,0)}.page-header h1 small{display:block;line-height:20px}input[type="checkbox"],input[type="radio"]{border:1px solid #ccc}.form-horizontal .control-label{float:none;width:auto;padding-top:0;text-align:left}.form-horizontal .controls{margin-left:0}.form-horizontal .control-list{padding-top:0}.form-horizontal .form-actions{padding-right:10px;padding-left:10px}.media .pull-left,.media .pull-right{display:block;float:none;margin-bottom:10px}.media-object{margin-right:0;margin-left:0}.modal{top:10px;right:10px;left:10px}.modal-header .close{padding:10px;margin:-10px}.carousel-caption{position:static}}@media(max-width:979px){body{padding-top:0}.navbar-fixed-top,.navbar-fixed-bottom{position:static}.navbar-fixed-top{margin-bottom:20px}.navbar-fixed-bottom{margin-top:20px}.navbar-fixed-top .navbar-inner,.navbar-fixed-bottom .navbar-inner{padding:5px}.navbar .container{width:auto;padding:0}.navbar .brand{padding-right:10px;padding-left:10px;margin:0 0 0 -5px}.nav-collapse{clear:both}.nav-collapse .nav{float:none;margin:0 0 10px}.nav-collapse .nav>li{float:none}.nav-collapse .nav>li>a{margin-bottom:2px}.nav-collapse .nav>.divider-vertical{display:none}.nav-collapse .nav .nav-header{color:#777;text-shadow:none}.nav-collapse .nav>li>a,.nav-collapse .dropdown-menu a{padding:9px 15px;font-weight:bold;color:#777;-webkit-border-radius:3px;-moz-border-radius:3px;border-radius:3px}.nav-collapse .btn{padding:4px 10px 4px;font-weight:normal;-webkit-border-radius:4px;-moz-border-radius:4px;border-radius:4px}.nav-collapse .dropdown-menu li+li a{margin-bottom:2px}.nav-collapse .nav>li>a:hover,.nav-collapse .nav>li>a:focus,.nav-collapse .dropdown-menu a:hover,.nav-collapse .dropdown-menu a:focus{background-color:#f2f2f2}.navbar-inverse .nav-collapse .nav>li>a,.navbar-inverse .nav-collapse .dropdown-menu a{color:#999}.navbar-inverse .nav-collapse .nav>li>a:hover,.navbar-inverse .nav-collapse .nav>li>a:focus,.navbar-inverse .nav-collapse .dropdown-menu a:hover,.navbar-inverse .nav-collapse .dropdown-menu a:focus{background-color:#111}.nav-collapse.in .btn-group{padding:0;margin-top:5px}.nav-collapse .dropdown-menu{position:static;top:auto;left:auto;display:none;float:none;max-width:none;padding:0;margin:0 15px;background-color:transparent;border:0;-webkit-border-radius:0;-moz-border-radius:0;border-radius:0;-webkit-box-shadow:none;-moz-box-shadow:none;box-shadow:none}.nav-collapse .open>.dropdown-menu{display:block}.nav-collapse .dropdown-menu:before,.nav-collapse .dropdown-menu:after{display:none}.nav-collapse .dropdown-menu .divider{display:none}.nav-collapse .nav>li>.dropdown-menu:before,.nav-collapse .nav>li>.dropdown-menu:after{display:none}.nav-collapse .navbar-form,.nav-collapse .navbar-search{float:none;padding:10px 15px;margin:10px 0;border-top:1px solid #f2f2f2;border-bottom:1px solid #f2f2f2;-webkit-box-shadow:inset 0 1px 0 rgba(255,255,255,0.1),0 1px 0 rgba(255,255,255,0.1);-moz-box-shadow:inset 0 1px 0 rgba(255,255,255,0.1),0 1px 0 rgba(255,255,255,0.1);box-shadow:inset 0 1px 0 rgba(255,255,255,0.1),0 1px 0 rgba(255,255,255,0.1)}.navbar-inverse .nav-collapse .navbar-form,.navbar-inverse .nav-collapse .navbar-search{border-top-color:#111;border-bottom-color:#111}.navbar .nav-collapse .nav.pull-right{float:none;margin-left:0}.nav-collapse,.nav-collapse.collapse{height:0;overflow:hidden}.navbar .btn-navbar{display:block}.navbar-static .navbar-inner{padding-right:10px;padding-left:10px}}@media(min-width:980px){.nav-collapse.collapse{height:auto!important;overflow:visible!important}}
 
 
-/* feed icon inspired from peculiar by Lucian Marin - lucianmarin.com */
-/* https://github.com/lucianmarin/peculiar */
+
 .ico {
   position: relative;
   width: 16px;
@@ -738,6 +810,10 @@ h5.folder {
   border-color: red !important;
 }
 
+.current .item-title {
+  font-weight: bold;
+}
+
 dl {
   margin-bottom: 0px !important;
 }
@@ -752,6 +828,9 @@ dl {
   opacity: 0.4;
 }
 
+.autohide-feed,.autohide-folder {
+  display: none;
+}
 
 #main-container {
   float: right;
@@ -907,7 +986,7 @@ dl {
           <div id="install">
             <form class="form-horizontal" method="post" action="" name="installform">
               <fieldset>
-                <legend>KrISS feed installation</legend>
+                <legend>light feed installation</legend>
                 <div class="control-group">
                   <label class="control-label" for="setlogin">Login</label>
                   <div class="controls">
@@ -958,7 +1037,7 @@ dl {
           <div id="login">
             <form class="form-horizontal" method="post" action="?login" name="loginform">
               <fieldset>
-                <legend>Welcome to KrISS feed</legend>
+                <legend>Welcome to light feed reader</legend>
                 <div class="control-group">
                   <label class="control-label" for="login">Login</label>
                   <div class="controls">
@@ -1018,6 +1097,7 @@ dl {
         &nbsp;
         &nbsp;
       </a>
+
       <?php if (isset($currentHashView)) { ?>
       <span class="brand">
         <?php echo $currentHashView ?>
@@ -1133,8 +1213,8 @@ dl {
         extract(FeedPage::$var);
 ?>
 <div id="status" class="text-center">
-  <a href="http://github.com/tontof/kriss_feed">KrISS feed <?php echo $version; ?></a>
-  <span class="hidden-phone"> - A simple and smart (or stupid) feed reader</span>. By <a href="http://tontof.net">Tontof</a>
+  <a href="http://github.com/bearer1024/lightFeedReader">light feed reader<?php echo $version; ?></a>
+  <span class="hidden-phone"> - A light feed reader</span>. By <b>xx54</b>
 </div>
 <?php
     }
@@ -1157,7 +1237,7 @@ dl {
                 <input type="hidden" name="token" value="<?php echo Session::getToken(); ?>">
                 <input type="hidden" name="returnurl" value="<?php echo $referer; ?>" />
                 <fieldset>
-                  <legend>KrISS feed Reader information</legend>
+                  <legend>LIGHT feed Reader information</legend>
 
                   <div class="control-group">
                     <label class="control-label" for="title">Feed reader title</label>
@@ -1171,11 +1251,11 @@ dl {
                     <div class="controls">
                       <label for="publicReader">
                         <input type="radio" id="publicReader" name="public" value="1" <?php echo ($kfcpublic? 'checked="checked"' : ''); ?>/>
-                        Public kriss feed
+                        Public light feed
                       </label>
                       <label for="privateReader">
                         <input type="radio" id="privateReader" name="public" value="0" <?php echo (!$kfcpublic? 'checked="checked"' : ''); ?>/>
-                        Private kriss feed
+                        Private light feed
                       </label>
                     </div>
                   </div>
@@ -1198,9 +1278,18 @@ dl {
                     <label class="control-label" for="redirector">Feed reader redirector (only for links, media are not considered, <strong>item content is anonymize only with javascript</strong>)</label>
                     <div class="controls">
                       <input type="text" id="redirector" name="redirector" value="<?php echo $kfcredirector; ?>">
-                      <span class="help-block">(e.g. http://anonym.to/? will mask the HTTP_REFERER)</span>
+                      <span class="help-block"><strong>http://anonym.to/?</strong> will mask the HTTP_REFERER, you can also use <strong>noreferrer</strong> to use HTML5 property</span>
                     </div>
                   </div>
+
+                  <div class="control-group">
+                    <label class="control-label" for="disablesessionprotection">Session protection</label>
+                    <div class="controls">
+                      <label><input type="checkbox" id="disablesessionprotection" name="disableSessionProtection"<?php echo ($kfcdisablesessionprotection ? ' checked="checked"' : ''); ?>>Disable session cookie hijacking protection</label>
+                      <span class="help-block">Check this if you get disconnected often or if your IP address changes often.</span>
+                    </div>
+                  </div>
+
                   <div class="control-group">
                     <div class="controls">
                       <input class="btn" type="submit" name="cancel" value="Cancel"/>
@@ -1209,7 +1298,7 @@ dl {
                   </div>
                 </fieldset>
                 <fieldset>
-                  <legend>KrISS feed reader preferences</legend>
+                  <legend>light feed reader preferences</legend>
 
                   <div class="control-group">
                     <label class="control-label" for="maxItems">Maximum number of items by feed</label>
@@ -1284,6 +1373,20 @@ dl {
                   </div>
 
                   <div class="control-group">
+                    <label class="control-label">Add favicon option</label>
+                    <div class="controls">
+                      <label for="donotaddfavicon">
+                        <input type="radio" id="donotaddfavicon" name="addFavicon" value="0" <?php echo (!$kfcaddfavicon ? 'checked="checked"' : ''); ?>/>
+                        Do not add favicon next to feed on list of feeds
+                      </label>
+                      <label for="addfavicon">
+                        <input type="radio" id="addfavicon" name="addFavicon" value="1" <?php echo ($kfcaddfavicon ? 'checked="checked"' : ''); ?>/>
+                        Add favicon next to feed on list of feeds<br><strong>Warning: It depends on http://getfavicon.appspot.com/ <?php if (in_array('curl', get_loaded_extensions())) { echo 'but it will cache favicon on your server'; } ?></strong>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="control-group">
                     <label class="control-label">Auto update with javascript</label>
                     <div class="controls">
                       <label for="donotautoupdate">
@@ -1305,7 +1408,7 @@ dl {
                   </div>
                 </fieldset>
                 <fieldset>
-                  <legend>KrISS feed menu preferences</legend>
+                  <legend>light feed menu preferences</legend>
                   You can order or remove elements in the menu. Set a position or leave empty if you don't want the element to appear in the menu.
                   <div class="control-group">
                     <label class="control-label" for="menuView">View</label>
@@ -1385,7 +1488,7 @@ dl {
                   </div>
                 </fieldset>
                 <fieldset>
-                  <legend>KrISS feed paging menu preferences</legend>
+                  <legend>light feed paging menu preferences</legend>
                   <div class="control-group">
                     <label class="control-label" for="pagingItem">Item</label>
                     <div class="controls">
@@ -1408,6 +1511,13 @@ dl {
                     </div>
                   </div>
                   <div class="control-group">
+                    <label class="control-label" for="pagingMarkAs">Mark as read</label>
+                    <div class="controls">
+                      <input type="text" id="pagingMarkAs" name="pagingMarkAs" value="<?php echo empty($kfcpaging['pagingMarkAs'])?'0':$kfcpaging['pagingMarkAs']; ?>">
+                      <span class="help-block">If you add a mark as read button into paging</span>
+                    </div>
+                  </div>
+                  <div class="control-group">
                     <div class="controls">
                       <input class="btn" type="submit" name="cancel" value="Cancel"/>
                       <input class="btn" type="submit" name="save" value="Save" />
@@ -1419,9 +1529,11 @@ dl {
                   <code><?php echo MyTool::getUrl().'?update&cron='.$kfccron; ?></code>
                   You can use <code>&force</code> to force update.<br>
                   To update every 15 minutes
-                  <code>*/15 * * * * wget "<?php echo MyTool::getUrl().'?update&cron='.$kfccron; ?>" -O /tmp/kf.cron</code>
+                  <code>*/15 * * * * wget "<?php echo MyTool::getUrl().'?update&cron='.$kfccron; ?>" -O /tmp/kf.cron</code><br>
                   To update every hour
-                  <code>0 * * * * wget "<?php echo MyTool::getUrl().'?update&cron='.$kfccron; ?>" -O /tmp/kf.cron</code>
+                  <code>0 * * * * wget "<?php echo MyTool::getUrl().'?update&cron='.$kfccron; ?>" -O /tmp/kf.cron</code><br>
+                  If you can not use wget, you may try php command line :
+                  <code>0 * * * * php -f <?php echo $_SERVER["SCRIPT_FILENAME"].' update '.$kfccron; ?> > /tmp/kf.cron</code>
                   <div class="control-group">
                     <div class="controls">
                       <input class="btn" type="submit" name="cancel" value="Cancel"/>
@@ -1455,6 +1567,7 @@ dl {
             <?php FeedPage::navTpl(); ?>
             <div id="section">
               <h2>Keyboard shortcut</h2>
+              <h3>Items navigation</h3>
               <dl class="dl-horizontal">
                 <dt>'space' or 't'</dt>
                 <dd>When viewing items as list, let you open or close current item ('t'oggle current item)</dd>
@@ -1488,18 +1601,61 @@ dl {
                 <dd>Go to 'p'revious item and open it (in list view)</dd>
               </dl>
               <dl class="dl-horizontal">
-                <dt>'o' or 'v'</dt>
-                <dd>'O'pen/'V'iew current item in new tab</dd>
-                <dt>'shift' + 'o' or 'shift' + 'v'</dt>
-                <dd>'O'pen/'V'iew current item in current window</dd>
+                <dt>'o'</dt>
+                <dd>'O'pen current item in new tab</dd>
+                <dt>'shift' + 'o'</dt>
+                <dd>'O'pen current item in current window</dd>
               </dl>
               <dl class="dl-horizontal">
                 <dt>'s'</dt>
                 <dd>'S'hare current item (go in <a href="?config" title="configuration">configuration</a> to set up you link)</dd>
               </dl>
               <dl class="dl-horizontal">
+                <dt>'a'</dt>
+                <dd>Mark 'a'll items, 'a'll items from current feed or 'a'll items from current folder as read</dd>
+              </dl>
+              <h3>Menu navigation</h3>
+              <dl class="dl-horizontal">
                 <dt>'h'</dt>
                 <dd>Go to 'H'ome page</dd>
+              </dl>
+              <dl class="dl-horizontal">
+                <dt>'v'</dt>
+                <dd>Change 'v'iew as list or expanded</dd>
+              </dl>
+              <dl class="dl-horizontal">
+                <dt>'f'</dt>
+                <dd>Show or hide list of 'f'eeds/'f'olders</dd>
+              </dl>
+              <dl class="dl-horizontal">
+                <dt>'e'</dt>
+                <dd>'E'dit current selection (all, folder or feed)</dd>
+              </dl>
+              <dl class="dl-horizontal">
+                <dt>'u'</dt>
+                <dd>'U'pdate current selection (all, folder or feed)</dd>
+              </dl>
+              <dl class="dl-horizontal">
+                <dt>'r'</dt>
+                <dd>'R'eload the page as the 'F5' key in most of browsers</dd>
+              </dl>
+              <dl class="dl-horizontal">
+                <dt>'?' or 'F1'</dt>
+                <dd>Go to Help page (actually it's shortcut to go to this page)</dd>
+              </dl>
+            </div>
+
+            <div id="section">
+              <h2>Check configuration</h2>
+              <dl class="dl-horizontal">
+                <dt>open_ssl</dt>
+                <dd>
+                  <?php if (extension_loaded('openssl')) { ?>
+                  <span class="text-success">You should be able to load https:// rss links.</span>
+                  <?php } else { ?>
+                  <span class="text-error">You may have problems using https:// rss links.</span>
+                  <?php } ?>
+                </dd>
               </dl>
             </div>
           </div>
@@ -1562,7 +1718,7 @@ dl {
             <fieldset>
               <legend>Use bookmarklet to add a new feed</legend>
               <div id="add-feed-bookmarklet" class="text-center">
-                <a onclick="alert('Drag this link to your bookmarks toolbar, or right-click it and choose Bookmark This Link...');return false;" href="javascript:(function(){var%20url%20=%20location.href;window.open('<?php echo $kfurl;?>?add&amp;newfeed='+encodeURIComponent(url),'_blank','menubar=no,height=390,width=600,toolbar=no,scrollbars=yes,status=no,dialog=1');})();"><b>Add KF</b></a>
+                <a onclick="alert('Drag this link to your bookmarks toolbar, or right-click it and choose Bookmark This Link...');return false;" href="javascript:(function(){var%20url%20=%20location.href;window.open('<?php echo $kfurl;?>?add&amp;newfeed='+encodeURIComponent(url),'_blank','menubar=no,height=390,width=600,toolbar=no,scrollbars=yes,status=no,dialog=1');})();"><b>Add light Feed</b></a>
               </div>
             </fieldset>
             <input type="hidden" name="token" value="<?php echo Session::getToken(); ?>">
@@ -1820,9 +1976,13 @@ dl {
             <div class="row-fluid">
               <div class="span6 offset3">
                 <ul class="unstyled">
-                  <?php $kf->updateFeedsHash($feedsHash, $forceUpdate, 'html')?>
+                  <?php $lf->updateFeedsHash($feedsHash, $forceUpdate, 'html')?>
                 </ul>
+                <a class="btn" href="?">Go home</a>
+                <?php if (!empty($referer)) { ?>
                 <a class="btn" href="<?php echo htmlspecialchars($referer); ?>">Go back</a>
+                <?php } ?>
+                <a class="btn" href="<?php echo $query."update=".$currentHash."&force"; ?>">Force update</a>
               </div>
             </div>
           </div>
@@ -1915,12 +2075,13 @@ dl {
         }
         ?>
         
-        <?php if (!$autohide or ($autohide and $feed['nbUnread']!== 0)) { ?>
-        <li id="<?php echo 'feed-'.$feedHash; ?>" class="feed<?php if ($feed['nbUnread']!== 0) echo ' has-unread'?>">
-          - <a class="mark-as" href="<?php echo $query.'read='.$feedHash; ?>"><span class="label"><?php echo $feed['nbUnread']; ?></span></a><a class="feed<?php echo (isset($feed['error'])?' text-error':''); ?>" href="<?php echo '?currentHash='.$feedHash; ?>" title="<?php echo $atitle; ?>"><?php echo htmlspecialchars($feed['title']); ?></a>
+        <li id="<?php echo 'feed-'.$feedHash; ?>" class="feed<?php if ($feed['nbUnread']!== 0) echo ' has-unread'?><?php if ($autohide and $feed['nbUnread']== 0) { echo ' autohide-feed';} ?>">
+          <?php if ($addFavicon) { ?>
+          <img src="<?php echo grabFavicon($feed['htmlUrl'], $feedHash); ?>" height="16px" width="16px" title="favicon" alt="favicon"/>
+          <?php } ?>
+<a class="mark-as" href="<?php echo $query.'read='.$feedHash; ?>"><span class="label"><?php echo $feed['nbUnread']; ?></span></a><a class="feed<?php echo (isset($feed['error'])?' text-error':''); ?>" href="<?php echo '?currentHash='.$feedHash; ?>" title="<?php echo $atitle; ?>"><?php echo htmlspecialchars($feed['title']); ?></a>
           
         </li>
-        <?php } ?>
 
         <?php
            }
@@ -1928,7 +2089,7 @@ dl {
         $isOpen = $folder['isOpen'];
         ?>
         
-        <li id="folder-<?php echo $hashFolder; ?>" class="folder">
+        <li id="folder-<?php echo $hashFolder; ?>" class="folder<?php if ($autohide and $folder['nbUnread']== 0) { echo ' autohide-folder';} ?>">
           <h5>
             <a class="mark-as" href="<?php echo $query.'read='.$hashFolder; ?>"><span class="label"><?php echo $folder['nbUnread']; ?></span></a>
             <a class="folder-toggle" href="<?php echo $query.'toggleFolder='.$hashFolder; ?>" data-toggle="collapse" data-target="#folder-ul-<?php echo $hashFolder; ?>">
@@ -1951,12 +2112,14 @@ dl {
             $atitle = $feed['error'];
             }
             ?>
-            <?php if (!$autohide or ($autohide and $feed['nbUnread']!== 0)) { ?>
 
-            <li id="folder-<?php echo $hashFolder; ?>-feed-<?php echo $feedHash; ?>" class="feed<?php if ($feed['nbUnread']!== 0) echo ' has-unread'?>">
-              - <a class="mark-as" href="<?php echo $query.'read='.$feedHash; ?>"><span class="label"><?php echo $feed['nbUnread']; ?></span></a><a class="feed<?php echo (isset($feed['error'])?' text-error':''); ?>" href="<?php echo '?currentHash='.$feedHash; ?>" title="<?php echo $atitle; ?>"><?php echo htmlspecialchars($feed['title']); ?></a>
+            <li id="folder-<?php echo $hashFolder; ?>-feed-<?php echo $feedHash; ?>" class="feed<?php if ($feed['nbUnread']!== 0) echo ' has-unread'?><?php if ($autohide and $feed['nbUnread']== 0) { echo ' autohide-feed';} ?>">
+              
+              <?php if ($addFavicon) { ?>
+              <img src="<?php echo grabFavicon($feed['htmlUrl'], $feedHash); ?>" height="16px" width="16px" title="favicon" alt="favicon"/>
+              <?php } ?>
+              <a class="mark-as" href="<?php echo $query.'read='.$feedHash; ?>"><span class="label"><?php echo $feed['nbUnread']; ?></span></a><a class="feed<?php echo (isset($feed['error'])?' text-error':''); ?>" href="<?php echo '?currentHash='.$feedHash; ?>" title="<?php echo $atitle; ?>"><?php echo htmlspecialchars($feed['title']); ?></a>
             </li>
-            <?php } ?>
             <?php } ?>
           </ul>
         </li>
@@ -1980,12 +2143,13 @@ dl {
 <ul id="list-items" class="unstyled">
   <?php
      foreach (array_keys($items) as $itemHash){
-     $item = $kf->getItem($itemHash);
+     $item = $lf->getItem($itemHash);
   ?>
   <li id="item-<?php echo $itemHash; ?>" class="<?php echo ($view==='expanded'?'item-expanded':'item-list'); ?><?php echo ($item['read']==1?' read':''); ?><?php echo ($itemHash==$currentItemHash?' current':''); ?>">
 
     <?php if ($view==='list') { ?>
     <a id="item-toggle-<?php echo $itemHash; ?>" class="item-toggle item-toggle-plus" href="<?php echo $query.'current='.$itemHash.((!isset($_GET['open']) or $currentItemHash != $itemHash)?'&amp;open':''); ?>" data-toggle="collapse" data-target="#item-div-<?php echo $itemHash; ?>">
+      <?php echo $item['time']['list']; ?>
       <span class="ico">
         <span class="ico-circle"></span>
         <span class="ico-line-h"></span>
@@ -2005,7 +2169,7 @@ dl {
           <?php } else { ?>
           <a class="item-mark-as" href="<?php echo $query.'read='.$itemHash; ?>"><span class="label">read</span></a>
           <?php } ?>
-          <a class="item-link" href="<?php echo $redirector.$item['link']; ?>">
+          <a target="_blank"<?php echo ($redirector==='noreferrer'?' rel="noreferrer"':''); ?> class="item-link" href="<?php echo ($redirector!='noreferrer'?$redirector:'').$item['link']; ?>">
             <?php echo $item['title']; ?>
           </a>
         </span>
@@ -2027,22 +2191,24 @@ dl {
         <?php } else { ?>
         <a class="item-mark-as" href="<?php echo $query.'read='.$itemHash; ?>"><span class="label item-label-mark-as">read</span></a>
         <?php } ?>
-        <a class="item-link" href="<?php echo $redirector.$item['link']; ?>"><?php echo $item['title']; ?></a>
-        <div class="item-info-end">
-          from <a class="item-via" href="<?php echo $redirector.$item['via']; ?>"><?php echo $item['author']; ?></a>
-          <a class="item-xml" href="<?php echo $redirector.$item['xmlUrl']; ?>">
-            <span class="ico">
-              <span class="ico-feed-dot"></span>
-              <span class="ico-feed-circle-1"></span>
-              <span class="ico-feed-circle-2"></span>
-            </span>
-          </a>
-        </div>
+        <a target="_blank"<?php echo ($redirector==='noreferrer'?' rel="noreferrer"':''); ?> class="item-link" href="<?php echo ($redirector!='noreferrer'?$redirector:'').$item['link']; ?>"><?php echo $item['title']; ?></a>
       </div>
       <div class="clear"></div>
-      <div class="item-content">
-        <?php echo $item['content']; ?>
+      <div class="item-info-end">
+        from <a class="item-via"<?php echo ($redirector==='noreferrer'?' rel="noreferrer"':''); ?> href="<?php echo ($redirector!='noreferrer'?$redirector:'').$item['via']; ?>"><?php echo $item['author']; ?></a>
+        <?php echo $item['time']['expanded']; ?>
+        <a class="item-xml"<?php echo ($redirector==='noreferrer'?' rel="noreferrer"':''); ?> href="<?php echo ($redirector!='noreferrer'?$redirector:'').$item['xmlUrl']; ?>">
+          <span class="ico">
+            <span class="ico-feed-dot"></span>
+            <span class="ico-feed-circle-1"></span>
+            <span class="ico-feed-circle-2"></span>
+          </span>
+        </a>
       </div>
+      <div class="clear"></div>
+      <div class="item-content"><article>
+        <?php echo $item['content']; ?>
+      </article></div>
       <div class="item-info-end">
         <a class="item-shaarli" href="<?php echo $query.'shaarli='.$itemHash; ?>"><span class="label label-expanded">share</span></a>
         <?php if ($item['read'] == 1) { ?>
@@ -2072,6 +2238,13 @@ dl {
     <div class="btn-group">
       <a class="btn btn-info previous-item" href="<?php echo $query.'previous='.$currentItemHash; ?>">Previous item</a>
       <a class="btn btn-info next-item" href="<?php echo $query.'next='.$currentItemHash; ?>">Next item</a>
+    </div>
+  </li>
+  <?php break; ?>
+  <?php case 'pagingMarkAs': ?>
+  <li>
+    <div class="btn-group">
+      <a class="btn btn-info" href="<?php echo $query.'read='.$currentHash; ?>">Mark as read</a>
     </div>
   </li>
   <?php break; ?>
@@ -2388,7 +2561,11 @@ dl {
       for (var i = 0; i < a_to_anon.length; i++) {
         domain = a_to_anon[i].href.replace('http://','').replace('https://','').split(/[/?#]/)[0];
         if (domain !== window.location.host) {
-          a_to_anon[i].href = redirector+a_to_anon[i].href;
+          if (redirector !== 'noreferrer') {
+            a_to_anon[i].href = redirector+a_to_anon[i].href;
+          } else {
+            a_to_anon[i].setAttribute('rel', 'noreferrer');
+          }
         }
       }
     }
@@ -2426,7 +2603,7 @@ dl {
     collapseElement(this);
   }
 
-  function initCollapse (list) {
+  function initCollapse(list) {
     var i = 0;
 
     for (i = 0; i < list.length; i += 1) {
@@ -2436,13 +2613,25 @@ dl {
     }
   }
 
+  function htmlspecialchars_decode(string) {
+    return string
+           .replace(/&lt;/g, '<')
+           .replace(/&gt;/g, '>')
+           .replace(/&quot;/g, '"')
+           .replace(/&amp;/g, '&')
+           .replace(/&#0*39;/g, "'");
+  }
+
   function shaarliItem(itemHash) {
     var domainUrl, url, domainVia, via, title, sel, element;
 
    element = document.getElementById('item-div-'+itemHash);
     if (element.childNodes.length > 1) {
       title = getTitleItem(itemHash);
-      url = getUrlItem(itemHash).replace(redirector,'');
+      url = getUrlItem(itemHash);
+      if (redirector != 'noreferrer') {
+        url = url.replace(redirector,'');
+      }
       via = getViaItem(itemHash);
       domainUrl = url.replace('http://','').replace('https://','').split(/[/?#]/)[0];
       domainVia = via.replace('http://','').replace('https://','').split(/[/?#]/)[0];
@@ -2458,10 +2647,10 @@ dl {
 
       window.open(
         shaarli
-        .replace('${url}', encodeURIComponent(url))
-        .replace('${title}', encodeURIComponent(title))
-        .replace('${via}', encodeURIComponent(via))
-        .replace('${sel}', encodeURIComponent(sel)),
+        .replace('${url}', encodeURIComponent(htmlspecialchars_decode(url)))
+        .replace('${title}', encodeURIComponent(htmlspecialchars_decode(title)))
+        .replace('${via}', encodeURIComponent(htmlspecialchars_decode(via)))
+        .replace('${sel}', encodeURIComponent(htmlspecialchars_decode(sel))),
         '_blank',
         'height=390, width=600, menubar=no, toolbar=no, scrollbars=no, status=no'
       );
@@ -2819,15 +3008,17 @@ dl {
     div.innerHTML = '<div class="item-title">' +
       '<a class="item-shaarli" href="' + '?currentHash=' + currentHash + '&shaarli=' + item['itemHash'] + '"><span class="label">share</span></a> ' +
       '<a class="item-mark-as" href="' + '?currentHash=' + currentHash + '&' + markAs + '=' + item['itemHash'] + '"><span class="label item-label-mark-as">' + markAs + '</span></a> ' +
-      '<a class="item-link" href="' + item['link'] + '">' +
+      '<a target="_blank" class="item-link" href="' + item['link'] + '">' +
       item['title'] +
       '</a>' +
       '</div>' +
+      '<div class="clear"></div>' +
       '<div class="item-info-end">' +
       'from <a class="item-via" href="' + item['via'] + '">' +
       item['author'] +
-      '</a>' +
-      '<a class="item-xml" href="' + item['xmlUrl'] + '">' +
+      '</a> ' +
+      item['time']['expanded'] +
+      ' <a class="item-xml" href="' + item['xmlUrl'] + '">' +
       '<span class="ico">' +
       '<span class="ico-feed-dot"></span>' +
       '<span class="ico-feed-circle-1"></span>' +
@@ -2836,9 +3027,9 @@ dl {
       '</a>' +
       '</div>' +
       '<div class="clear"></div>' +
-      '<div class="item-content">' +
+      '<div class="item-content"><article>' +
       item['content'] +
-      '</div>' +
+      '</article></div>' +
       '<div class="item-info-end">' +
       '<a class="item-shaarli" href="' + '?currentHash=' + currentHash + '&shaarli=' + item['itemHash'] + '"><span class="label label-expanded">share</span></a> ' +
       '<a class="item-mark-as" href="' + '?currentHash=' + currentHash + '&' + markAs + '=' + item['itemHash'] + '"><span class="label label-expanded">' + markAs + '</span></a>' +
@@ -2857,8 +3048,9 @@ dl {
       markAs = 'unread';
     }
 
-    li.innerHTML = '<a id="item-toggle-'+ item['itemHash'] +'" class="item-toggle-plus" href="' + '?currentHash=' + currentHash + '&current=' + item['itemHash'] +'&open" data-toggle="collapse" data-target="#item-div-'+ item['itemHash'] + '">' +
-      '<span class="ico">' +
+    li.innerHTML = '<a id="item-toggle-'+ item['itemHash'] +'" class="item-toggle item-toggle-plus" href="' + '?currentHash=' + currentHash + '&current=' + item['itemHash'] +'&open" data-toggle="collapse" data-target="#item-div-'+ item['itemHash'] + '"> ' +
+      item['time']['list'] +
+      ' <span class="ico">' +
       '<span class="ico-circle"></span>' +
       '<span class="ico-line-h"></span>' +
       '<span class="ico-line-v item-toggle-close"></span>' +
@@ -2873,12 +3065,14 @@ dl {
       '<dd class="item-info">' +
       '<span class="item-title">' +
       '<a class="item-mark-as" href="' + '?currentHash=' + currentHash + '&' + markAs + '=' + item['itemHash'] + '"><span class="label">' + markAs + '</span></a> ' +
-      '<a class="item-link" href="' + item['link'] + '">' +
+      '<a target="_blank" class="item-link" href="' + item['link'] + '">' +
       item['title'] +
       '</a> ' +
       '</span>' +
       '<span class="item-description">' +
+      '<a class="item-toggle muted" href="' + '?currentHash=' + currentHash + '&current=' + item['itemHash'] + '&open" data-toggle="collapse" data-target="#item-div-'+ item['itemHash'] + '">' +
       item['description'] +
+      '</a> ' +
       '</span>' +
       '</dd>' +
       '</dl>';
@@ -3322,13 +3516,33 @@ dl {
   }
 
   function checkKey(e) {
-      var code;
-      if (!e) e = window.event;
-      if (e.keyCode) code = e.keyCode;
-      else if (e.which) code = e.which;
+    var code;
+    if (!e) e = window.event;
+    if (e.keyCode) code = e.keyCode;
+    else if (e.which) code = e.which;
+
+    if (!e.ctrlKey && !e.altKey) {
       switch(code) {
         case 32: // 'space'
         toggleCurrentItem();
+        break;
+        case 65: // 'A'
+        if (window.confirm('Mark all current as read ?')) {
+          window.location.href = '?read=' + currentHash;
+        }
+        break;
+        case 67: // 'C'
+        window.location.href = '?config';
+        break;
+        case 69: // 'E'
+        window.location.href = (currentHash==''?'?edit':'?edit='+currentHash);
+        break;
+        case 70: // 'F'
+        if (listFeeds =='show') {
+          window.location.href = (currentHash==''?'?':'?currentHash='+currentHash+'&')+'listFeeds=hide';
+        } else {
+          window.location.href = (currentHash==''?'?':'?currentHash='+currentHash+'&')+'listFeeds=show';
+        }
         break;
         case 72: // 'H'
         window.location.href = document.getElementById('nav-home').href;
@@ -3353,7 +3567,6 @@ dl {
         }
         break;
         case 79: // 'O'
-        case 86: // 'V' as in RSS lounge
         if (e.shiftKey) {
           openCurrentItem(true);
         } else {
@@ -3368,15 +3581,34 @@ dl {
           previousItem();
         }
         break;
+        case 82: // 'R'
+        window.location.reload(true);
+        break;
         case 83: // 'S'
         shaarliCurrentItem();
         break;
         case 84: // 'T'
         toggleCurrentItem();
         break;
+        case 85: // 'U'
+        window.location.href = (currentHash==''?'?update':'?currentHash=' + currentHash + '&update='+currentHash);
+        break;
+        case 86: // 'V'
+        if (view == 'list') {
+          window.location.href = (currentHash==''?'?':'?currentHash='+currentHash+'&')+'view=expanded';
+        } else {
+          window.location.href = (currentHash==''?'?':'?currentHash='+currentHash+'&')+'view=list';
+        }
+        break;
+        case 112: // 'F1'
+        case 188: // '?'
+        case 191: // '?'
+        window.location.href = '?help';
+        break;
         default:
         break;
       }
+    }
     // e.ctrlKey e.altKey e.shiftKey
   }
 
@@ -3647,7 +3879,8 @@ dl {
   }
 
   function initKF() {
-    var listLinkFolders = [],
+    var listItems,
+        listLinkFolders = [],
         listLinkItems = [];
 
     initOptions();
@@ -3671,12 +3904,15 @@ dl {
 
     initAnonyme();
 
-    addEvent(window, 'keyup', checkKey);
+    addEvent(window, 'keydown', checkKey);
     addEvent(window, 'touchstart', checkMove);
 
     if (autoupdate) {
       initUpdate();
     }
+
+    listItems = getListItems();
+    listItems.focus();
   }
 
   //http://scottandrew.com/weblog/articles/cbs-events
@@ -3702,12 +3938,7 @@ dl {
     }
   }
 
-  function test() {
-    alert(JSON.stringify(listItemsHash));
-
-  }
-
-  // when document is loaded init KrISS feed
+  // when document is loaded init light feed feed
   if (document.getElementById && document.createTextNode) {
     addEvent(window, 'load', initKF);
   }
@@ -3715,7 +3946,6 @@ dl {
   window.checkKey = checkKey;
   window.removeEvent = removeEvent;
   window.addEvent = addEvent;
-  window.test = test;
 })();    </script>
     <?php } ?>
   </body>
@@ -3730,13 +3960,13 @@ class Feed
 
     public $cacheDir = '';
 
-    public $kfc;
+    public $lfc;
 
     private $_data = array();
 
-    public function __construct($dataFile, $cacheDir, $kfc)
+    public function __construct($dataFile, $cacheDir, $lfc)
     {
-        $this->kfc = $kfc;
+        $this->lfc = $lfc;
         $this->dataFile = $dataFile;
         $this->cacheDir = $cacheDir;
     }
@@ -3769,16 +3999,16 @@ class Feed
                 return true;
             } else {
                 $this->_data['feeds'] = array(
-                    MyTool::smallHash('http://tontof.net/?rss') => array(
-                        'title' => 'Tontof',
+                    MyTool::smallHash('https://www.linux.com/feeds/tutorials/rss') => array(
+                        'title' => 'linux.com tutorials',
                         'foldersHash' => array(),
                         'timeUpdate' => 'auto',
                         'lastUpdate' => 0,
                         'nbUnread' => 0,
                         'nbAll' => 0,
-                        'htmlUrl' => 'http://tontof.net',
-                        'xmlUrl' => 'http://tontof.net/?rss',
-                        'description' => 'A simple and smart (or stupid) blog'));
+                        'htmlUrl' => 'https://www.linux.com/feeds/tutorials/rss',
+                        'xmlUrl' => 'https://www.linux.com/feeds/tutorials/rss',
+                        'description' => 'tutorials from linux.com'));
                 $this->_data['folders'] = array();
                 $this->_data['items'] = array();
                 $this->_data['newItems'] = array();
@@ -3793,7 +4023,7 @@ class Feed
 
     public function writeData()
     {
-        if (Session::isLogged() || (isset($_GET['cron']) && $_GET['cron'] === sha1($this->kfc->salt.$this->kfc->hash))) {
+        if (Session::isLogged() || (isset($_GET['cron']) && $_GET['cron'] === sha1($this->lfc->salt.$this->lfc->hash))) {
             $write = @file_put_contents(
                 $this->dataFile,
                 PHPPREFIX
@@ -3832,7 +4062,7 @@ class Feed
             if (empty($feed['foldersHash'])) {
                 $feedsView['all']['feeds'][$feedHash] = $feed;
             } else {
-                foreach ($feed['foldersHash'] as $folderHash ) {
+                foreach ($feed['foldersHash'] as $folderHash) {
                     $folder = $this->getFolder($folderHash);
                     if ($folder !== false) {
                         if (!isset($feedsView['folders'][$folderHash]['title'])) {
@@ -3855,6 +4085,8 @@ class Feed
     public function getFeed($feedHash)
     {
         if (isset($this->_data['feeds'][$feedHash])) {
+            $this->_data['feeds'][$feedHash]['xmlUrl'] = htmlspecialchars($this->_data['feeds'][$feedHash]['xmlUrl']);
+            $this->_data['feeds'][$feedHash]['htmlUrl'] = htmlspecialchars($this->_data['feeds'][$feedHash]['htmlUrl']);
             return $this->_data['feeds'][$feedHash];
         }
 
@@ -3924,7 +4156,7 @@ class Feed
                     $this->_data['feeds'][$feedHash]['timeUpdate'] = $timeUpdate;
                 } else {
                     $this->_data['feeds'][$feedHash]['timeUpdate'] = (int) $timeUpdate;
-                    $maxUpdate = $this->kfc->maxUpdate;
+                    $maxUpdate = $this->lfc->maxUpdate;
                     if ($this->_data['feeds'][$feedHash]['timeUpdate'] < MIN_TIME_UPDATE
                         || $this->_data['feeds'][$feedHash]['timeUpdate'] > $maxUpdate
                     ) {
@@ -3955,7 +4187,7 @@ class Feed
 
     public function writeFeed($feedHash, $feed)
     {
-        if (Session::isLogged() || (isset($_GET['cron']) && $_GET['cron'] === sha1($this->kfc->salt.$this->kfc->hash))) {
+        if (Session::isLogged() || (isset($_GET['cron']) && $_GET['cron'] === sha1($this->lfc->salt.$this->lfc->hash))) {
             if (!is_dir($this->cacheDir)) {
                 if (!@mkdir($this->cacheDir, 0755)) {
                     die("Can not create cache dir: ".$this->cacheDir);
@@ -4192,10 +4424,15 @@ class Feed
 
         if (!empty($item)) {
             $item['itemHash'] = $itemHash;
+            $time = $item['time'];
+            if (strftime('%Y%m%d', $time) == strftime('%Y%m%d', time())) {
+                // Today
+                $item['time'] = array('list' => utf8_encode(strftime('%R %p', $time)), 'expanded' => utf8_encode(strftime('%A %d %B %Y - %H:%M', $time)));
+            } else {
+                $item['time'] = array('list' => utf8_encode(strftime('%b %e, %Y', $time)), 'expanded' => utf8_encode(strftime('%A %d %B %Y - %H:%M', $time)));                
+            }
             if (isset($this->_data['items'][$itemHash])) {
                 $item['read'] = $this->_data['items'][$itemHash][1];
-
-                return $item;
             } else if (isset($this->_data['newItems'][$itemHash])) {
                 $item['read'] = $this->_data['newItems'][$itemHash][1];
 
@@ -4209,12 +4446,17 @@ class Feed
                 } else {
                     $_SESSION['lastNewItemsHash'] = $itemHash;
                 }
-
-                return $item;
             } else {
                 // FIX: data may be corrupted
                 return false;
             }
+            
+            $item['author'] = htmlspecialchars(htmlspecialchars_decode(strip_tags($item['author']), ENT_QUOTES), ENT_NOQUOTES);
+            $item['title'] = htmlspecialchars(htmlspecialchars_decode(strip_tags($item['title']), ENT_QUOTES), ENT_NOQUOTES);
+            $item['link'] = htmlspecialchars($item['link']);
+            $item['via'] = htmlspecialchars($item['via']);
+            
+            return $item;
         }
 
         return false;
@@ -4222,18 +4464,18 @@ class Feed
 
     public function updateItems()
     {
-        if (isset($this->_data['needSort']) or (isset($this->_data['order']) and $this->_data['order'] != $this->kfc->order)) {
+        if (isset($this->_data['needSort']) or (isset($this->_data['order']) and $this->_data['order'] != $this->lfc->order)) {
             unset($this->_data['needSort']);
 
             $this->_data['items'] = $this->_data['items']+$this->_data['newItems'];
             $this->_data['newItems'] = array();
             // sort items
-            if ($this->kfc->order === 'newerFirst') {
+            if ($this->lfc->order === 'newerFirst') {
                 arsort($this->_data['items']);
             } else {
                 asort($this->_data['items']);
             }
-            $this->_data['order'] = $this->kfc->order;
+            $this->_data['order'] = $this->lfc->order;
 
             return true;
         }
@@ -4317,8 +4559,13 @@ class Feed
                     } else {
                         $tag = $item->getElementsByTagName($list[$i]);
                         // wrong detection : e.g. media:content for content
-                        if ($tag->length != 0 && $tag->item(0)->tagName != $list[$i]) {
-                            $tag = new DOMNodeList;
+                        if ($tag->length != 0) {
+                            for ($j = $tag->length; --$j >= 0;) {
+                                $elt = $tag->item($j);
+                                if ($tag->item($j)->tagName != $list[$i]) {
+                                    $elt->parentNode->removeChild($elt);
+                                }
+                            }
                         }
                     }
                     if ($tag->length != 0) {
@@ -4326,8 +4573,18 @@ class Feed
                         // select first item (item(0)), (may not work)
                         // stop to search for another one
                         if ($format == 'link') {
-                            $tmpItem[$format]
-                                = $tag->item(0)->getAttribute('href');
+                            $tmpItem[$format] = '';
+                            for ($j = 0; $j < $tag->length; $j++) {
+                                if ($tag->item($j)->hasAttribute('rel') && $tag->item($j)->getAttribute('rel') == 'alternate') {
+                                    $tmpItem[$format]
+                                        = $tag->item($j)->getAttribute('href');
+                                    $j = $tag->length;
+                                }
+                            }
+                            if ($tmpItem[$format] == '') {
+                                $tmpItem[$format]
+                                    = $tag->item(0)->getAttribute('href');
+                            }
                         }
                         if (empty($tmpItem[$format])) {
                             $tmpItem[$format] = $tag->item(0)->textContent;
@@ -4457,24 +4714,89 @@ class Feed
         return $formats;
     }
 
+    public function loadUrl($url, $opts = array()){
+        $ch = curl_init($url);
+        if (!empty($opts)) {
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $opts['http']['timeout']);
+            curl_setopt($ch, CURLOPT_TIMEOUT, $opts['http']['timeout']);
+            curl_setopt($ch, CURLOPT_USERAGENT, $opts['http']['user_agent']);
+        }
+        curl_setopt($ch, CURLOPT_ENCODING, true);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_BINARYTRANSFER, true);
+        curl_setopt($ch, CURLOPT_URL, $url);
+
+        $output = $this->curl_exec_follow($ch);
+
+        curl_close($ch);
+
+        return $output;
+    }
+ 
+    public function curl_exec_follow(&$ch, $redirects = 20, $curloptHeader = false) {
+        if ((!ini_get('open_basedir') && !ini_get('safe_mode')) || $redirects < 1) {
+            curl_setopt($ch, CURLOPT_HEADER, $curloptHeader);
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, $redirects > 0);
+            curl_setopt($ch, CURLOPT_MAXREDIRS, $redirects);
+            return curl_exec($ch);
+        } else {
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+            curl_setopt($ch, CURLOPT_HEADER, true);
+            curl_setopt($ch, CURLOPT_FORBID_REUSE, false);
+
+            do {
+                $data = curl_exec($ch);
+                if (curl_errno($ch))
+                    break;
+                $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                // 301 Moved Permanently
+                // 302 Found
+                // 303 See Other
+                // 307 Temporary Redirect
+                if ($code != 301 && $code != 302 && $code!=303 && $code!=307)
+                    break;
+                $header_start = strpos($data, "\r\n")+2;
+                $headers = substr($data, $header_start, strpos($data, "\r\n\r\n", $header_start)+2-$header_start);
+                if (!preg_match("!\r\n(?:Location|location|URI): *(.*?) *\r\n!", $headers, $matches))
+                    break;
+                curl_setopt($ch, CURLOPT_URL, $matches[1]);
+            } while (--$redirects);
+            if (!$redirects)
+                trigger_error('Too many redirects. When following redirects, libcurl hit the maximum amount.', E_USER_WARNING);
+            if (!$curloptHeader)
+                $data = substr($data, strpos($data, "\r\n\r\n")+4);
+
+            return $data;
+        }
+    }
+
     public function loadXml($xmlUrl)
     {
+        // hide warning/error
+        set_error_handler(array('MyTool', 'silence_errors'));
+
         // set user agent
         // http://php.net/manual/en/function.libxml-set-streams-context.php
         $opts = array(
             'http' => array(
                 'timeout' => 4,
-                'user_agent' => 'KrISS feed agent '.$this->kfc->version.' by Tontof.net http://github.com/tontof/kriss_feed',
+                'user_agent' => 'KrISS feed agent '.$this->lfc->version.' by Tontof.net http://github.com/tontof/kriss_feed',
                 )
             );
+        $document = new DOMDocument();
 
-        $context = stream_context_create($opts);
-        libxml_set_streams_context($context);
+        if (in_array('curl', get_loaded_extensions())) {
+            $output = $this->loadUrl($xmlUrl, $opts);
+            $document->loadXML($output);
+        } else {
+            // try using libxml
+            $context = stream_context_create($opts);
+            libxml_set_streams_context($context);
 
-        // request a file through HTTP
-        $document = false;
-        set_error_handler(array('MyTool', 'silence_errors'));
-        $document = DOMDocument::load($xmlUrl);
+            // request a file through HTTP
+            $document->load($xmlUrl);
+        }
+        // show back warning/error
         restore_error_handler();
 
         return $document;
@@ -4491,6 +4813,9 @@ class Feed
             } else {
                 $channel = $this->getChannelFromXml($xml);
                 $items = $this->getItemsFromXml($xml);
+                if (count($items) == 0) {
+                    return false;
+                }
                 foreach (array_keys($items) as $itemHash) {
                     if (empty($items[$itemHash]['via'])) {
                         $items[$itemHash]['via'] = $channel['htmlUrl'];
@@ -4536,12 +4861,12 @@ class Feed
         $max = $feed['timeUpdate'];
 
         if ($max == 'auto') {
-            $max = $this->kfc->maxUpdate;
+            $max = $this->lfc->maxUpdate;
         } elseif ($max == 'max') {
-            $max = $this->kfc->maxUpdate;
+            $max = $this->lfc->maxUpdate;
         } elseif ((int) $max < MIN_TIME_UPDATE
-                  || (int) $max > $this->kfc->maxUpdate) {
-            $max = $this->kfc->maxUpdate;
+                  || (int) $max > $this->lfc->maxUpdate) {
+            $max = $this->lfc->maxUpdate;
         }
 
         return (int) $max;
@@ -4567,6 +4892,7 @@ class Feed
             return 'Items may have been missed since last update';
             break;
         case ERROR_LAST_UPDATE:
+        case ERROR_UNKNOWN:
             return 'Problem with the last update';
             break;
         default:
@@ -4616,88 +4942,93 @@ class Feed
             $oldItems = $this->_data['feeds'][$feedHash]['items'];
 
             $rssItems = $this->getItemsFromXml($xml);
-            $rssItems = array_slice($rssItems, 0, $this->kfc->maxItems, true);
+            $rssItems = array_slice($rssItems, 0, $this->lfc->maxItems, true);
             $rssItemsHash = array_keys($rssItems);
 
-            // Look for new items
-            foreach ($rssItemsHash as $itemHash) {
-                // itemHash is smallHash of link. To compare to item
-                // hashes into data, we need to concatenate to feedHash.
-                if (!isset($oldItems[$feedHash.$itemHash])) {
-                    if (empty($rssItems[$itemHash]['via'])) {
-                        $rssItems[$itemHash]['via']
-                            = $this->_data['feeds'][$feedHash]['htmlUrl'];
+            if (count($rssItemsHash) !== 0) {
+
+                // Look for new items
+                foreach ($rssItemsHash as $itemHash) {
+                    // itemHash is smallHash of link. To compare to item
+                    // hashes into data, we need to concatenate to feedHash.
+                    if (!isset($oldItems[$feedHash.$itemHash])) {
+                        if (empty($rssItems[$itemHash]['via'])) {
+                            $rssItems[$itemHash]['via']
+                                = $this->_data['feeds'][$feedHash]['htmlUrl'];
+                        }
+                        if (empty($rssItems[$itemHash]['author'])) {
+                            $rssItems[$itemHash]['author']
+                                = $this->_data['feeds'][$feedHash]['title'];
+                        } else {
+                            $rssItems[$itemHash]['author']
+                                = $this->_data['feeds'][$feedHash]['title'] . ' ('
+                                . $rssItems[$itemHash]['author'] . ')';
+                        }
+                        $rssItems[$itemHash]['xmlUrl'] = $xmlUrl;
+                        $newItems[$feedHash . $itemHash] = $rssItems[$itemHash];
                     }
-                    if (empty($rssItems[$itemHash]['author'])) {
-                        $rssItems[$itemHash]['author']
-                            = $this->_data['feeds'][$feedHash]['title'];
-                    } else {
-                        $rssItems[$itemHash]['author']
-                            = $this->_data['feeds'][$feedHash]['title'] . ' ('
-                            . $rssItems[$itemHash]['author'] . ')';
-                    }
-                    $rssItems[$itemHash]['xmlUrl'] = $xmlUrl;
-                    $newItems[$feedHash . $itemHash] = $rssItems[$itemHash];
                 }
-            }
-            $newItemsHash = array_keys($newItems);
-            $this->_data['feeds'][$feedHash]['items']
+                $newItemsHash = array_keys($newItems);
+                $this->_data['feeds'][$feedHash]['items']
                     = $newItems+$oldItems;
 
-            // Check if items may have been missed
-            if (count($oldItems) !== 0 and count($rssItemsHash) === count($newItemsHash)) {
-                $error = ERROR_ITEMS_MISSED;
-            }
-
-            // Remove useless items
-            foreach ($this->getItems($feedHash) as $itemHash => $item) {
-                $itemRssHash = substr($itemHash, 6, 6);
-                // Remove from cache already read items not any more in the feed
-                if (!isset($rssItems[$itemRssHash]) and $item[1] == 1) {
-                    unset($this->_data['feeds'][$feedHash]['items'][$itemHash]);
+                // Check if items may have been missed
+                if (count($oldItems) !== 0 and count($rssItemsHash) === count($newItemsHash)) {
+                    $error = ERROR_ITEMS_MISSED;
                 }
+
+                // Remove useless items
+                foreach ($this->getItems($feedHash) as $itemHash => $item) {
+                    $itemRssHash = substr($itemHash, 6, 6);
+                    // Remove from cache already read items not any more in the feed
+                    if (!isset($rssItems[$itemRssHash]) and $item[1] == 1) {
+                        unset($this->_data['feeds'][$feedHash]['items'][$itemHash]);
+                    }
                 
-                if (!isset($this->_data['feeds'][$feedHash]['items'][$itemHash])) {
-                    // Remove items not any more in the cache
-                    unset($this->_data['items'][$itemHash]);
-                    unset($this->_data['newItems'][$itemHash]);
+                    if (!isset($this->_data['feeds'][$feedHash]['items'][$itemHash])) {
+                        // Remove items not any more in the cache
+                        unset($this->_data['items'][$itemHash]);
+                        unset($this->_data['newItems'][$itemHash]);
+                    }
                 }
-            }
 
-            // Check if quota exceeded
-            $nbAll = count($this->_data['feeds'][$feedHash]['items']);
-            if ($nbAll > $this->kfc->maxItems) {
-                $this->_data['feeds'][$feedHash]['items']
-                    = array_slice(
-                        $this->_data['feeds'][$feedHash]['items'],
-                        0,
-                        $this->kfc->maxItems, true
-                        );
-                $nbAll = $this->kfc->maxItems;
-            }
+                // Check if quota exceeded
+                $nbAll = count($this->_data['feeds'][$feedHash]['items']);
+                if ($nbAll > $this->lfc->maxItems) {
+                    $this->_data['feeds'][$feedHash]['items']
+                        = array_slice(
+                            $this->_data['feeds'][$feedHash]['items'],
+                            0,
+                            $this->lfc->maxItems, true
+                            );
+                    $nbAll = $this->lfc->maxItems;
+                }
 
-            // Update items list and feed information (nbUnread, nbAll)
-            $this->_data['feeds'][$feedHash]['nbAll'] = $nbAll;
-            $nbUnread = 0;
-            foreach ($this->_data['feeds'][$feedHash]['items'] as $itemHash => $item) {
-                if (isset($this->_data['items'][$itemHash])) {
-                    if ($this->_data['items'][$itemHash][1] === 0) {
+                // Update items list and feed information (nbUnread, nbAll)
+                $this->_data['feeds'][$feedHash]['nbAll'] = $nbAll;
+                $nbUnread = 0;
+                foreach ($this->_data['feeds'][$feedHash]['items'] as $itemHash => $item) {
+                    if (isset($this->_data['items'][$itemHash])) {
+                        if ($this->_data['items'][$itemHash][1] === 0) {
+                            $nbUnread++;
+                        }
+                    } else if (isset($this->_data['newItems'][$itemHash])) {
+                        if ($this->_data['newItems'][$itemHash][1] === 0) {
+                            $nbUnread++;
+                        }
+                    } else {
+                        // TODO: Is appended at the end ??
+                        $this->_data['newItems'][$itemHash] = array(
+                            $item['time'],
+                            0                        
+                            );
                         $nbUnread++;
                     }
-                } else if (isset($this->_data['newItems'][$itemHash])) {
-                    if ($this->_data['newItems'][$itemHash][1] === 0) {
-                        $nbUnread++;
-                    }
-                } else {
-                    // TODO: Is appended at the end ??
-                    $this->_data['newItems'][$itemHash] = array(
-                        $item['time'],
-                        0                        
-                    );
-                    $nbUnread++;
                 }
+                $this->_data['feeds'][$feedHash]['nbUnread'] = $nbUnread;
+            } else {
+                $error = ERROR_UNKNOWN;
             }
-            $this->_data['feeds'][$feedHash]['nbUnread'] = $nbUnread;
         }
 
         // update feed information
@@ -4721,12 +5052,12 @@ class Feed
                 unset($_SESSION['lastNewItemsHash']);
             }
 
-            if ($this->kfc->order === 'newerFirst') {
+            if ($this->lfc->order === 'newerFirst') {
                 arsort($this->_data['newItems']);
             } else {
                 asort($this->_data['newItems']);
             }
-            $this->_data['order'] = $this->kfc->order;
+            $this->_data['order'] = $this->lfc->order;
 
             $this->writeData();
         }
@@ -4744,11 +5075,12 @@ class Feed
         $feedsHash = $this->orderFeedsForUpdate($feedsHash);
 
         ob_end_flush();
+        if (ob_get_level() == 0) ob_start();
         $start = microtime(true);
         foreach ($feedsHash as $feedHash) {
             $i++;
             $feed = $this->getFeed($feedHash);
-            $str = '<li>'.number_format(microtime(true)-$start,3).' seconds ('.$i.'/'.count($feedsHash).'): Updating: <span class="text-info">'.$feed['title'].'</span></li>';
+            $str = '<li>'.number_format(microtime(true)-$start,3).' seconds ('.$i.'/'.count($feedsHash).'): Updating: <a href="?currentHash='.$feedHash.'">'.$feed['title'].'</a></li>';
             echo ($format==='html'?$str:strip_tags($str)).str_pad('',4096)."\n";
             ob_flush();
             flush();
@@ -4947,7 +5279,7 @@ class MyTool
             $_GET = array_map('stripslashesDeep', $_GET);
             $_COOKIE = array_map('stripslashesDeep', $_COOKIE);
         }
-
+        //Turn on output buffering
         ob_start();
         register_shutdown_function('ob_end_flush');
     }
@@ -5047,17 +5379,22 @@ class MyTool
     {
         $https = (!empty($_SERVER['HTTPS'])
                   && (strtolower($_SERVER['HTTPS']) == 'on'))
-            || $_SERVER["SERVER_PORT"] == '443'; // HTTPS detection.
-        $serverport = ($_SERVER["SERVER_PORT"] == '80'
+            || (isset($_SERVER["SERVER_PORT"])
+                && $_SERVER["SERVER_PORT"] == '443'); // HTTPS detection.
+        $serverport = (!isset($_SERVER["SERVER_PORT"])
+                       || $_SERVER["SERVER_PORT"] == '80'
                        || ($https && $_SERVER["SERVER_PORT"] == '443')
                        ? ''
                        : ':' . $_SERVER["SERVER_PORT"]);
 
         $scriptname = ($_SERVER["SCRIPT_NAME"] == 'index.php' ? '' : $_SERVER["SCRIPT_NAME"]);
 
+        if (!isset($_SERVER["SERVER_NAME"])) {
+            return $scriptname;
+        }
+
         return 'http' . ($https ? 's' : '') . '://'
             . $_SERVER["SERVER_NAME"] . $serverport . $scriptname;
-
     }
 
     public static function rrmdir($dir)
@@ -5141,6 +5478,12 @@ class MyTool
             $rurl = MyTool::getUrl();
         }
 
+        if (substr($rurl, 0, 1) !== '?') {
+            $ref = MyTool::getUrl();
+            if (substr($rurl, 0, strlen($ref)) != $ref) {
+                $rurl = $ref;
+            }
+        }
         header('Location: '.$rurl);
         exit();
     }
@@ -5241,7 +5584,7 @@ class Opml
             }
 
             echo '<script>alert("File '
-                . $filename . ' (' . MyTool::humanBytes($filesize)
+                . htmlspecialchars($filename) . ' (' . MyTool::humanBytes($filesize)
                 . ') was successfully processed: ' . $importCount
                 . ' links imported.");document.location=\'?\';</script>';
 
@@ -5250,7 +5593,7 @@ class Opml
 
             return $kfData;
         } else {
-            echo '<script>alert("File ' . $filename . ' ('
+            echo '<script>alert("File ' . htmlspecialchars($filename) . ' ('
                 . MyTool::humanBytes($filesize) . ') has an unknown'
                 . ' file format. Check encoding, try to remove accents'
                 . ' and try again. Nothing was imported.");'
@@ -5516,12 +5859,26 @@ class PageBuilder
 
 class Session
 {
-    public static $inactivityTimeout = 3600;
-
     private static $_instance;
 
-    private function __construct()
+    public static $inactivityTimeout = 3600;
+
+    public static $disableSessionProtection = false;
+
+    public static $banFile = 'ipbans.php';
+    public static $banAfter = 4;
+    public static $banDuration = 1800;
+
+    private function __construct($banFile)
     {
+        // Check ban configuration
+        self::$banFile = $banFile;
+
+        if (!is_file(self::$banFile)) {
+            file_put_contents(self::$banFile, "<?php\n\$GLOBALS['IPBANS']=".var_export(array('FAILURES'=>array(),'BANS'=>array()),true).";\n?>");
+        }
+        include self::$banFile;
+
         // Force cookie path (but do not change lifetime)
         $cookie=session_get_cookie_params();
         // Default cookie expiration and path.
@@ -5542,26 +5899,64 @@ class Session
         }
     }
 
-    public static function init()
+    public static function init($banFile)
     {
         if (!isset(self::$_instance)) {
-            self::$_instance = new Session();
+            self::$_instance = new Session($banFile);
         }
     }
 
-    private static function _allInfo()
+    public static function banLoginFailed()
     {
-        $infos = $_SERVER["REMOTE_ADDR"];
-        if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            $infos.=$_SERVER['HTTP_X_FORWARDED_FOR'];
-        }
-        if (isset($_SERVER['HTTP_CLIENT_IP'])) {
-            $infos.='_'.$_SERVER['HTTP_CLIENT_IP'];
-        }
-        $infos.='_'.$_SERVER['HTTP_USER_AGENT'];
-        $infos.='_'.$_SERVER['HTTP_ACCEPT_LANGUAGE'];
+        $ip = $_SERVER["REMOTE_ADDR"];
+        $gb = $GLOBALS['IPBANS'];
 
-        return sha1($infos);
+        if (!isset($gb['FAILURES'][$ip])) {
+            $gb['FAILURES'][$ip] = 0;
+        }
+        $gb['FAILURES'][$ip]++;
+        if ($gb['FAILURES'][$ip] > (self::$banAfter-1)) {
+            $gb['BANS'][$ip]= time() + self::$banDuration;
+        }
+
+        $GLOBALS['IPBANS'] = $gb;
+        file_put_contents(self::$banFile, "<?php\n\$GLOBALS['IPBANS']=".var_export($gb,true).";\n?>");
+    }
+
+    function banLoginOk()
+    {
+        $ip = $_SERVER["REMOTE_ADDR"];
+        $gb = $GLOBALS['IPBANS'];
+        unset($gb['FAILURES'][$ip]); unset($gb['BANS'][$ip]);
+        $GLOBALS['IPBANS'] = $gb;
+        file_put_contents(self::$banFile, "<?php\n\$GLOBALS['IPBANS']=".var_export($gb,true).";\n?>");
+    }
+
+    function banCanLogin()
+    {
+        $ip = $_SERVER["REMOTE_ADDR"];
+        $gb = $GLOBALS['IPBANS'];
+        if (isset($gb['BANS'][$ip])) {
+            // User is banned. Check if the ban has expired:
+            if ($gb['BANS'][$ip] <= time()) {
+                // Ban expired, user can try to login again.
+                unset($gb['FAILURES'][$ip]);
+                unset($gb['BANS'][$ip]);
+                file_put_contents(self::$banFile, "<?php\n\$GLOBALS['IPBANS']=".var_export($gb,true).";\n?>");
+                return true; // Ban has expired, user can login.
+            }
+            return false; // User is banned.
+        }
+        return true; // User is not banned.
+    }
+
+    private static function _allIPs()
+    {
+        $ip = $_SERVER["REMOTE_ADDR"];
+        $ip.= isset($_SERVER['HTTP_X_FORWARDED_FOR']) ? '_'.$_SERVER['HTTP_X_FORWARDED_FOR'] : '';
+        $ip.= isset($_SERVER['HTTP_CLIENT_IP']) ? '_'.$_SERVER['HTTP_CLIENT_IP'] : '';
+
+        return $ip;
     }
 
     public static function login (
@@ -5571,13 +5966,17 @@ class Session
         $passwordTest,
         $pValues = array())
     {
+        if (!self::banCanLogin()) {
+            die('I said: NO. You are banned for the moment. Go away.');
+        }
         if ($login == $loginTest && $password==$passwordTest) {
+            self::banLoginOk();
             // Generate unique random number to sign forms (HMAC)
             $_SESSION['uid'] = sha1(uniqid('', true).'_'.mt_rand());
-            $_SESSION['info']=Session::_allInfo();
-            $_SESSION['username']=$login;
+            $_SESSION['ip'] = Session::_allIPs();
+            $_SESSION['username'] = $login;
             // Set session expiration.
-            $_SESSION['expires_on']=time()+Session::$inactivityTimeout;
+            $_SESSION['expires_on'] = time() + Session::$inactivityTimeout;
 
             foreach ($pValues as $key => $value) {
                 $_SESSION[$key] = $value;
@@ -5585,6 +5984,7 @@ class Session
 
             return true;
         }
+        self::banLoginFailed();
         Session::logout();
 
         return false;
@@ -5592,13 +5992,14 @@ class Session
 
     public static function logout()
     {
-        unset($_SESSION['uid'], $_SESSION['info'], $_SESSION['expires_on']);
+        unset($_SESSION['uid'], $_SESSION['ip'], $_SESSION['expires_on']);
     }
 
     public static function isLogged()
     {
         if (!isset ($_SESSION['uid'])
-            || $_SESSION['info']!=Session::_allInfo()
+            || (Session::$disableSessionProtection == false
+                && $_SESSION['ip']!=Session::_allIPs())
             || time()>=$_SESSION['expires_on']) {
             Session::logout();
 
@@ -5612,13 +6013,13 @@ class Session
         return true;
     }
 
-    public static function getToken()
+    public static function getToken($salt = '')
     {
         if (!isset($_SESSION['tokens'])) {
             $_SESSION['tokens']=array();
         }
         // We generate a random string and store it on the server side.
-        $rnd = sha1(uniqid('', true).'_'.mt_rand());
+        $rnd = sha1(uniqid('', true).'_'.mt_rand().$salt);
         $_SESSION['tokens'][$rnd]=1;
 
         return $rnd;
@@ -5639,35 +6040,36 @@ class Session
 // Check if php version is correct
 MyTool::initPHP();
 // Initialize Session
-Session::init();
+Session::init(BAN_FILE);
 // XSRF protection with token
 if (!empty($_POST)) {
     if (!Session::isToken($_POST['token'])) {
         die('Wrong token.');
     }
 }
+unset($_SESSION['tokens']);
 
 $pb = new PageBuilder('FeedPage');
-$kfp = new FeedPage(STYLE_FILE);
-$kfc = new FeedConf(CONFIG_FILE, FEED_VERSION);
-$kf = new Feed(DATA_FILE, CACHE_DIR, $kfc);
+$lfp = new FeedPage(STYLE_FILE);
+$lfc = new FeedConf(CONFIG_FILE, FEED_VERSION);
+$lf = new Feed(DATA_FILE, CACHE_DIR, $lfc);
 
 // List or Expanded ?
-$view = $kfc->view;
+$view = $lfc->view;
 // show or hide list of feeds ?
-$listFeeds =  $kfc->listFeeds;
+$listFeeds =  $lfc->listFeeds;
 // All or Unread ?
-$filter =  $kfc->filter;
+$filter =  $lfc->filter;
 // newerFirst or olderFirst
-$order =  $kfc->order;
+$order =  $lfc->order;
 // number of item by page
-$byPage = $kfc->getByPage();
+$byPage = $lfc->getByPage();
 // Hash : 'all', feed hash or folder hash
-$currentHash = $kfc->getCurrentHash();
+$currentHash = $lfc->getCurrentHash();
 // Query
 $query = '?';
 if (!empty($currentHash) and $currentHash !== 'all') {
-    $query = '?currentHash='.$currentHash.'&';
+    $query = '?currentHash='.$currentHash.'&amp;';
 }
 
 $pb->assign('view', $view);
@@ -5677,13 +6079,14 @@ $pb->assign('order', $order);
 $pb->assign('byPage', $byPage);
 $pb->assign('currentHash', $currentHash);
 $pb->assign('query', $query);
-$pb->assign('redirector', $kfc->redirector);
-$pb->assign('shaarli', htmlspecialchars($kfc->shaarli));
-$pb->assign('autoreadItem', $kfc->autoreadItem);
-$pb->assign('autoreadPage', $kfc->autoreadPage);
-$pb->assign('autohide', $kfc->autohide);
-$pb->assign('autofocus', $kfc->autofocus);
-$pb->assign('autoupdate', $kfc->autoUpdate);
+$pb->assign('redirector', $lfc->redirector);
+$pb->assign('shaarli', htmlspecialchars($lfc->shaarli));
+$pb->assign('autoreadItem', $lfc->autoreadItem);
+$pb->assign('autoreadPage', $lfc->autoreadPage);
+$pb->assign('autohide', $lfc->autohide);
+$pb->assign('autofocus', $lfc->autofocus);
+$pb->assign('autoupdate', $lfc->autoUpdate);
+$pb->assign('addFavicon', $lfc->addFavicon);
 $pb->assign('version', FEED_VERSION);
 $pb->assign('kfurl', MyTool::getUrl());
 
@@ -5693,10 +6096,10 @@ if (isset($_GET['login'])) {
         && !empty($_POST['password'])
     ) {
         if (Session::login(
-            $kfc->login,
-            $kfc->hash,
+            $lfc->login,
+            $lfc->hash,
             $_POST['login'],
-            sha1($_POST['password'].$_POST['login'].$kfc->salt)
+            sha1($_POST['password'].$_POST['login'].$lfc->salt)
         )) {
             if (!empty($_POST['longlastingsession'])) {
                 // (31536000 seconds = 1 year)
@@ -5713,7 +6116,7 @@ if (isset($_GET['login'])) {
         }
         die("Login failed !");
     } else {
-        $pb->assign('pagetitle', 'Login - '.strip_tags($kfc->title));
+        $pb->assign('pagetitle', 'Login - '.strip_tags($lfc->title));
         $pb->renderPage('login');
     }
 } elseif (isset($_GET['logout'])) {
@@ -5721,30 +6124,30 @@ if (isset($_GET['login'])) {
     Session::logout();
     MyTool::redirect();
 } elseif (isset($_GET['ajax'])) {
-    $kf->loadData();
+    $lf->loadData();
     $needSave = false;
     $result = array();
     if (isset($_GET['current'])) {
-        $result['item'] = $kf->getItem($_GET['current'], false);
+        $result['item'] = $lf->getItem($_GET['current'], false);
         $result['item']['itemHash'] = $_GET['current'];
     }
     if (isset($_GET['read'])) {
-        $needSave = $kf->mark($_GET['read'], 1);
+        $needSave = $lf->mark($_GET['read'], 1);
         if ($needSave) {
             $result['read'] = $_GET['read'];
         }
     }
     if (isset($_GET['unread'])) {
-        $needSave = $kf->mark($_GET['unread'], 0);
+        $needSave = $lf->mark($_GET['unread'], 0);
         if ($needSave) {
             $result['unread'] = $_GET['unread'];
         }
     }
     if (isset($_GET['toggleFolder'])) {
-        $needSave = $kf->toggleFolder($_GET['toggleFolder']);
+        $needSave = $lf->toggleFolder($_GET['toggleFolder']);
     }
     if (isset($_GET['page'])) {
-        $listItems = $kf->getItems($currentHash, $filter);
+        $listItems = $lf->getItems($currentHash, $filter);
         $currentPage = $_GET['page'];
         $index = ($currentPage - 1) * $byPage;
         $results = array_slice($listItems, $index, $byPage + 1, true);
@@ -5758,7 +6161,7 @@ if (isset($_GET['login'])) {
         }
         $i = 0;
         foreach(array_slice($results, $firstIndex + 1, count($results) - $firstIndex - 1, true) as $itemHash => $item) {
-            $result['page'][$i] = $kf->getItem($itemHash, false);
+            $result['page'][$i] = $lf->getItem($itemHash, false);
             $result['page'][$i]['read'] = $item[1];
             $i++;
         }
@@ -5767,18 +6170,18 @@ if (isset($_GET['login'])) {
         if (Session::isLogged()) {
             if (empty($_GET['update'])) {
                 $result['update']['feeds'] = array();
-                $feedsHash = $kf->orderFeedsForUpdate(array_keys($kf->getFeeds()));
+                $feedsHash = $lf->orderFeedsForUpdate(array_keys($lf->getFeeds()));
                 foreach ($feedsHash as $feedHash) {
-                    $feed = $kf->getFeed($feedHash);
-                    $result['update']['feeds'][] = array($feedHash, $feed['title'], (int) ((time() - $feed['lastUpdate']) / 60), $kf->getTimeUpdate($feed));
+                    $feed = $lf->getFeed($feedHash);
+                    $result['update']['feeds'][] = array($feedHash, $feed['title'], (int) ((time() - $feed['lastUpdate']) / 60), $lf->getTimeUpdate($feed));
                 }
             } else {
-                $feed = $kf->getFeed($_GET['update']);
-                $info = $kf->updateChannel($_GET['update']);
+                $feed = $lf->getFeed($_GET['update']);
+                $info = $lf->updateChannel($_GET['update']);
                 if (empty($info['error'])) {
                     $info['error'] = $feed['description'];
                 } else {
-                    $info['error'] = $kf->getError($info['error']);
+                    $info['error'] = $lf->getError($info['error']);
                 }
                 $info['newItems'] = array_keys($info['newItems']);
                 $result['update'] = $info;
@@ -5788,45 +6191,52 @@ if (isset($_GET['login'])) {
         }
     }
     if ($needSave) {
-        $kf->writeData();
+        $lf->writeData();
     }
     MyTool::renderJson($result);
 } elseif (isset($_GET['help'])) {
-    $pb->assign('pagetitle', 'Help for KrISS feed');
+    $pb->assign('pagetitle', 'Help for light feed reader');
     $pb->renderPage('help');
-} elseif (isset($_GET['update'])
+} elseif ((isset($_GET['update'])
           && (Session::isLogged()
               || (isset($_GET['cron'])
-                  && $_GET['cron'] === sha1($kfc->salt.$kfc->hash)))) {
+                  && $_GET['cron'] === sha1($lfc->salt.$lfc->hash))))
+          || (isset($argv)
+              && count($argv) >= 3
+              && $argv[1] == 'update'
+              && $argv[2] == sha1($lfc->salt.$lfc->hash))) {
     // Update
-    $kf->loadData();
+    $lf->loadData();
     $forceUpdate = false;
     if (isset($_GET['force'])) {
         $forceUpdate = true;
     }
     $feedsHash = array();
-    $hash = $_GET['update'];
+    $hash = 'all';
+    if (isset($_GET['update'])) {
+        $hash = $_GET['update'];
+    }
     // type : 'feed', 'folder', 'all', 'item'
-    $type = $kf->hashType($hash);
+    $type = $lf->hashType($hash);
     switch($type) {
     case 'feed':
         $feedsHash[] = $hash;
         break;
     case 'folder':
-        $feedsHash = $kf->getFeedsHashFromFolderHash($hash);
+        $feedsHash = $lf->getFeedsHashFromFolderHash($hash);
         break;
     case 'all':
     case '':
-        $feedsHash = array_keys($kf->getFeeds());
+        $feedsHash = array_keys($lf->getFeeds());
         break;
     case 'item':
     default:
         break;
     }
-    if (isset($_GET['cron'])) {
-        $kf->updateFeedsHash($feedsHash, $forceUpdate);
+    if (isset($_GET['cron']) || isset($argv) && count($argv) >= 3) {
+        $lf->updateFeedsHash($feedsHash, $forceUpdate);
     } else {
-        $pb->assign('lf', $kf);
+        $pb->assign('lf', $lf);
         $pb->assign('feedsHash', $feedsHash);
         $pb->assign('forceUpdate', $forceUpdate);
         $pb->assign('pagetitle', 'Update');
@@ -5835,30 +6245,36 @@ if (isset($_GET['login'])) {
 } elseif (isset($_GET['config']) && Session::isLogged()) {
     // Config
     if (isset($_POST['save'])) {
-        $kfc->hydrate($_POST);
+        if (isset($_POST['disableSessionProtection'])) {
+            $_POST['disableSessionProtection'] = '1';
+        } else {
+            $_POST['disableSessionProtection'] = '0';
+        }
+        $lfc->hydrate($_POST);
         MyTool::redirect();
     } elseif (isset($_POST['cancel'])) {
         MyTool::redirect();
     } else {
-        $menu = $kfc->getMenu();
-        $paging = $kfc->getPaging();
+        $menu = $lfc->getMenu();
+        $paging = $lfc->getPaging();
 
         $pb->assign('page', 'config');
-        $pb->assign('pagetitle', 'Config - '.strip_tags($kfc->title));
-        $pb->assign('kfctitle', htmlspecialchars($kfc->title));
-        $pb->assign('kfcredirector', htmlspecialchars($kfc->redirector));
-        $pb->assign('kfcshaarli', htmlspecialchars($kfc->shaarli));
-        $pb->assign('kfclocale', htmlspecialchars($kfc->locale));
-        $pb->assign('kfcmaxitems', htmlspecialchars($kfc->maxItems));
-        $pb->assign('kfcmaxupdate', htmlspecialchars($kfc->maxUpdate));
-        $pb->assign('kfcpublic', (int) $kfc->public);
-        $pb->assign('kfccron', sha1($kfc->salt.$kfc->hash));
-        $pb->assign('kfcautoreaditem', (int) $kfc->autoreadItem);
-        $pb->assign('kfcautoreadpage', (int) $kfc->autoreadPage);
-        $pb->assign('kfcautoupdate', (int) $kfc->autoUpdate);
-        $pb->assign('kfcautohide', (int) $kfc->autohide);
-        $pb->assign('kfcautofocus', (int) $kfc->autofocus);
-
+        $pb->assign('pagetitle', 'Config - '.strip_tags($lfc->title));
+        $pb->assign('kfctitle', htmlspecialchars($lfc->title));
+        $pb->assign('kfcredirector', htmlspecialchars($lfc->redirector));
+        $pb->assign('kfcshaarli', htmlspecialchars($lfc->shaarli));
+        $pb->assign('kfclocale', htmlspecialchars($lfc->locale));
+        $pb->assign('kfcmaxitems', htmlspecialchars($lfc->maxItems));
+        $pb->assign('kfcmaxupdate', htmlspecialchars($lfc->maxUpdate));
+        $pb->assign('kfcpublic', (int) $lfc->public);
+        $pb->assign('kfccron', sha1($lfc->salt.$lfc->hash));
+        $pb->assign('kfcautoreaditem', (int) $lfc->autoreadItem);
+        $pb->assign('kfcautoreadpage', (int) $lfc->autoreadPage);
+        $pb->assign('kfcautoupdate', (int) $lfc->autoUpdate);
+        $pb->assign('kfcautohide', (int) $lfc->autohide);
+        $pb->assign('kfcautofocus', (int) $lfc->autofocus);
+        $pb->assign('kfcaddfavicon', (int) $lfc->addFavicon);
+        $pb->assign('kfcdisablesessionprotection', (int) $lfc->disableSessionProtection);
         $pb->assign('kfcmenu', $menu);
         $pb->assign('kfcpaging', $paging);
 
@@ -5884,10 +6300,10 @@ if (isset($_GET['login'])) {
             exit;
         }
         
-        $kf->loadData();
-        $kf->setData(Opml::importOpml($kf->getData()));
-        $kf->sortFeeds();
-        $kf->writeData();
+        $lf->loadData();
+        $lf->setData(Opml::importOpml($lf->getData()));
+        $lf->sortFeeds();
+        $lf->writeData();
         exit;
     } else if (isset($_POST['cancel'])) {
         MyTool::redirect();
@@ -5897,14 +6313,14 @@ if (isset($_GET['login'])) {
     }
 } elseif (isset($_GET['export']) && Session::isLogged()) {
     // Export
-    $kf->loadData();
-    Opml::exportOpml($kf->getFeeds(), $kf->getFolders());
+    $lf->loadData();
+    Opml::exportOpml($lf->getFeeds(), $lf->getFolders());
 } elseif (isset($_GET['add']) && Session::isLogged()) {
     // Add feed
-    $kf->loadData();
+    $lf->loadData();
 
     if (isset($_POST['newfeed']) && !empty($_POST['newfeed'])) {
-        if ($kf->addChannel($_POST['newfeed'])) {
+        if ($lf->addChannel($_POST['newfeed'])) {
             // Add success
             $folders = array();
             if (!empty($_POST['folders'])) {
@@ -5914,13 +6330,13 @@ if (isset($_GET['login'])) {
             }
             if (!empty($_POST['newfolder'])) {
                 $newFolderHash = MyTool::smallHash($_POST['newfolder']);
-                $kf->addFolder($_POST['newfolder'], $newFolderHash);
+                $lf->addFolder($_POST['newfolder'], $newFolderHash);
                 $folders[] = $newFolderHash;
             }
             $hash = MyTool::smallHash($_POST['newfeed']);
-            $kf->editFeed($hash, '', '', $folders, '');
-            $kf->sortFeeds();
-            $kf->writeData();
+            $lf->editFeed($hash, '', '', $folders, '');
+            $lf->sortFeeds();
+            $lf->writeData();
             MyTool::redirect('?currentHash='.$hash);
         } else {
             // Add fail
@@ -5942,21 +6358,21 @@ if (isset($_GET['login'])) {
     $pb->assign('page', 'add');
     $pb->assign('pagetitle', 'Add a new feed');
     $pb->assign('newfeed', $newfeed);
-    $pb->assign('folders', $kf->getFolders());
+    $pb->assign('folders', $lf->getFolders());
     
     $pb->renderPage('addFeed');
 } elseif (isset($_GET['toggleFolder']) && Session::isLogged()) {
-    $kf->loadData();
+    $lf->loadData();
     if (isset($_GET['toggleFolder'])) {
-        $kf->toggleFolder($_GET['toggleFolder']);
+        $lf->toggleFolder($_GET['toggleFolder']);
     }
-    $kf->writeData();
+    $lf->writeData();
     MyTool::redirect();
 } elseif ((isset($_GET['read'])
            || isset($_GET['unread']))
           && Session::isLogged()) {
     // mark all as read : item, feed, folder, all
-    $kf->loadData();
+    $lf->loadData();
 
     $read = 1;
     if (isset($_GET['read'])) {
@@ -5967,28 +6383,32 @@ if (isset($_GET['login'])) {
         $read = 0;
     }
 
-    $needSave = $kf->mark($hash, $read);
+    $needSave = $lf->mark($hash, $read);
     if ($needSave) {
-        $kf->writeData();
+        $lf->writeData();
     }
 
     // type : 'feed', 'folder', 'all', 'item'
-    $type = $kf->hashType($hash);
+    $type = $lf->hashType($hash);
     if ($type === 'item') {
         MyTool::redirect($query.'current='.$hash);
     } else {
-        MyTool::redirect($query);
+        if ($filter === 'unread' && $read === 1) {
+            MyTool::redirect('?');
+        } else {
+            MyTool::redirect($query);
+        }
     }
 } elseif (isset($_GET['edit']) && Session::isLogged()) {
     // Edit feed, folder, all
-    $kf->loadData();
+    $lf->loadData();
     $pb->assign('page', 'edit');
     $pb->assign('pagetitle', 'edit');
     
     $hash = substr(trim($_GET['edit'], '/'), 0, 6);
 // type : 'feed', 'folder', 'all', 'item'
-$type = $kf->hashType($currentHash);
-    $type = $kf->hashType($hash);
+$type = $lf->hashType($currentHash);
+    $type = $lf->hashType($hash);
     switch($type) {
     case 'feed':
         if (isset($_POST['save'])) {
@@ -6002,34 +6422,34 @@ $type = $kf->hashType($currentHash);
             }
             if (!empty($_POST['newfolder'])) {
                 $newFolderHash = MyTool::smallHash($_POST['newfolder']);
-                $kf->addFolder($_POST['newfolder'], $newFolderHash);
+                $lf->addFolder($_POST['newfolder'], $newFolderHash);
                 $folders[] = $newFolderHash;
             }
             $timeUpdate = $_POST['timeUpdate'];
 
-            $kf->editFeed($hash, $title, $description, $folders, $timeUpdate);
-            $kf->writeData();
+            $lf->editFeed($hash, $title, $description, $folders, $timeUpdate);
+            $lf->writeData();
 
             MyTool::redirect();
         } elseif (isset($_POST['delete'])) {
-            $kf->removeFeed($hash);
-            $kf->writeData();
+            $lf->removeFeed($hash);
+            $lf->writeData();
 
-            MyTool::redirect();
+            MyTool::redirect('?');
         } elseif (isset($_POST['cancel'])) {
             MyTool::redirect();
         } else {
-            $feed = $kf->getFeed($hash);
+            $feed = $lf->getFeed($hash);
             if (!empty($feed)) {
                 $lastUpdate = 'need update';
-                if (!$kf->needUpdate($feed)) {
+                if (!$lf->needUpdate($feed)) {
                     $diff = (int) (time() - $feed['lastUpdate']);
                     $lastUpdate =
                         (int) ($diff / 60) . ' m ' . (int) ($diff % 60) . ' s';
                 }
 
                 $pb->assign('feed', $feed);
-                $pb->assign('folders', $kf->getFolders());
+                $pb->assign('folders', $lf->getFolders());
                 $pb->assign('lastUpdate', $lastUpdate);
                 $pb->renderPage('editFeed');
             } else {
@@ -6039,11 +6459,11 @@ $type = $kf->hashType($currentHash);
         break;
     case 'folder':
         if (isset($_POST['save'])) {
-            $oldFolderTitle = $kf->getFolderTitle($hash);
+            $oldFolderTitle = $lf->getFolderTitle($hash);
             $newFolderTitle = $_POST['foldertitle'];
             if ($oldFolderTitle !== $newFolderTitle) {
-                $kf->renameFolder($hash, $newFolderTitle);
-                $kf->writeData();
+                $lf->renameFolder($hash, $newFolderTitle);
+                $lf->writeData();
             }
 
             if (empty($newFolderTitle)) {
@@ -6054,7 +6474,7 @@ $type = $kf->hashType($currentHash);
         } elseif (isset($_POST['cancel'])) {
             MyTool::redirect();
         } else {
-            $folderTitle = $kf->getFolderTitle($hash);
+            $folderTitle = $lf->getFolderTitle($hash);
             $pb->assign('foldertitle', htmlspecialchars($folderTitle));
             $pb->renderPage('editFolder');
         }
@@ -6068,7 +6488,7 @@ $type = $kf->hashType($currentHash);
             }
 
             foreach ($feedsHash as $feedHash) {
-                $feed = $kf->getFeed($feedHash);
+                $feed = $lf->getFeed($feedHash);
                 $addFoldersHash = $feed['foldersHash'];
                 if (!empty($_POST['addfolders'])) {
                     foreach ($_POST['addfolders'] as $folderHash) {
@@ -6079,7 +6499,7 @@ $type = $kf->hashType($currentHash);
                 }
                 if (!empty($_POST['addnewfolder'])) {
                     $newFolderHash = MyTool::smallHash($_POST['addnewfolder']);
-                    $kf->addFolder($_POST['addnewfolder'], $newFolderHash);
+                    $lf->addFolder($_POST['addnewfolder'], $newFolderHash);
                     $addFoldersHash[] = $newFolderHash;
                 }
                 $removeFoldersHash = array();
@@ -6090,7 +6510,7 @@ $type = $kf->hashType($currentHash);
                 }
                 $addFoldersHash = array_diff($addFoldersHash, $removeFoldersHash);
 
-                $kf->editFeed(
+                $lf->editFeed(
                     $feedHash,
                     '',
                     '',
@@ -6098,21 +6518,21 @@ $type = $kf->hashType($currentHash);
                     ''
                 );
             }
-            $kf->writeData();
+            $lf->writeData();
 
             MyTool::redirect();
         } elseif (isset($_POST['delete'])) {
             foreach ($_POST['feeds'] as $feedHash) {
-                $kf->removeFeed($feedHash);
+                $lf->removeFeed($feedHash);
             }
-            $kf->writeData();
+            $lf->writeData();
 
             MyTool::redirect();
         } elseif (isset($_POST['cancel'])) {
             MyTool::redirect();
         } else {
-            $folders = $kf->getFolders();
-            $listFeeds = $kf->getFeeds();
+            $folders = $lf->getFolders();
+            $listFeeds = $lf->getFeeds();
             $pb->assign('folders', $folders);
             $pb->assign('listFeeds', $listFeeds);
             $pb->renderPage('editAll');
@@ -6124,15 +6544,15 @@ $type = $kf->hashType($currentHash);
         break;
     }
 } elseif (isset($_GET['shaarli'])) {
-    $kf->loadData();
-    $item = $kf->getItem($_GET['shaarli'], false);
-    $shaarli = $kfc->shaarli;
+    $lf->loadData();
+    $item = $lf->getItem($_GET['shaarli'], false);
+    $shaarli = $lfc->shaarli;
     // remove sel used with javascript
     $shaarli = str_replace('${sel}', '', $shaarli);
 
-    $url = $item['link'];
-    $via = $item['via'];
-    $title = $item['title'];
+    $url = htmlspecialchars_decode($item['link']);
+    $via = htmlspecialchars_decode($item['via']);
+    $title = htmlspecialchars_decode($item['title']);
 
     if (parse_url($url, PHP_URL_HOST) !== parse_url($via, PHP_URL_HOST)) {
         $via = 'via '.$via;
@@ -6140,19 +6560,19 @@ $type = $kf->hashType($currentHash);
         $via = '';
     }
 
-    $shaarli = str_replace('${url}', $url, $shaarli);
-    $shaarli = str_replace('${title}', $title, $shaarli);
-    $shaarli = str_replace('${via}', $via, $shaarli);
+    $shaarli = str_replace('${url}', urlencode($url), $shaarli);
+    $shaarli = str_replace('${title}', urlencode($title), $shaarli);
+    $shaarli = str_replace('${via}', urlencode($via), $shaarli);
 
-    MyTool::redirect($shaarli);
+    header('Location: '.$shaarli);
 } else {
-    if (Session::isLogged() || $kfc->public) {
-        $kf->loadData();
-        if ($kf->updateItems()) {
-            $kf->writeData();
+    if (Session::isLogged() || $lfc->public) {
+        $lf->loadData();
+        if ($lf->updateItems()) {
+            $lf->writeData();
         }
 
-        $listItems = $kf->getItems($currentHash, $filter);
+        $listItems = $lf->getItems($currentHash, $filter);
         $listHash = array_keys($listItems);
 
         $currentItemHash = '';
@@ -6161,12 +6581,12 @@ $type = $kf->hashType($currentHash);
         }
         if (isset($_GET['next']) && !empty($_GET['next'])) {
             $currentItemHash = $_GET['next'];
-            if ($kfc->autoreadItem) {
-                if ($kf->mark($currentItemHash, 1)) {
+            if ($lfc->autoreadItem) {
+                if ($lf->mark($currentItemHash, 1)) {
                     if ($filter == 'unread') {
                         unset($listItems[$currentItemHash]);
                     }
-                    $kf->writeData();
+                    $lf->writeData();
                 }
             }
         }
@@ -6174,7 +6594,7 @@ $type = $kf->hashType($currentHash);
             $currentItemHash = $_GET['previous'];
         }
         if (empty($currentItemHash)) {
-            $currentPage = $kfc->getCurrentPage();
+            $currentPage = $lfc->getCurrentPage();
             $index = ($currentPage - 1) * $byPage;
         } else {
             $index = array_search($currentItemHash, $listHash);
@@ -6216,25 +6636,25 @@ $type = $kf->hashType($currentHash);
         $listItems = array_slice($listItems, $begin, $byPage, true);
 
         // type : 'feed', 'folder', 'all', 'item'
-        $currentHashType = $kf->hashType($currentHash);
+        $currentHashType = $lf->hashType($currentHash);
         $hashView = '';
         switch($currentHashType){
         case 'all':
             $hashView = '<span id="nb-unread">'.$unread.'</span><span class="hidden-phone"> unread items</span>';
             break;
         case 'feed':
-            $hashView = 'Feed (<a href="'.$kf->getFeedHtmlUrl($currentHash).'" title="">'.$kf->getFeedTitle($currentHash).'</a>): '.'<span id="nb-unread">'.$unread.'</span><span class="hidden-phone"> unread items</span>';
+            $hashView = 'Feed (<a href="'.$lf->getFeedHtmlUrl($currentHash).'" title="">'.$lf->getFeedTitle($currentHash).'</a>): '.'<span id="nb-unread">'.$unread.'</span><span class="hidden-phone"> unread items</span>';
             break;
         case 'folder':
-            $hashView = 'Folder ('.$kf->getFolderTitle($currentHash).'): <span id="nb-unread">'.$unread.'</span><span class="hidden-phone"> unread items</span>';
+            $hashView = 'Folder ('.$lf->getFolderTitle($currentHash).'): <span id="nb-unread">'.$unread.'</span><span class="hidden-phone"> unread items</span>';
             break;
         default:
-            $hashView = '<span id="nb-unread">'.$unread.'</span><span> unread items';
+            $hashView = '<span id="nb-unread">'.$unread.'</span><span class="hidden-phone"> unread items</span>';
             break;
         }
 
-        $menu = $kfc->getMenu();
-        $paging = $kfc->getPaging();
+        $menu = $lfc->getMenu();
+        $paging = $lfc->getPaging();
         $pb->assign('menu',  $menu);
         $pb->assign('paging',  $paging);
         $pb->assign('currentHashType', $currentHashType);
@@ -6245,14 +6665,14 @@ $type = $kf->hashType($currentHash);
         $pb->assign('nbItems', $nbItems);
         $pb->assign('items', $listItems);
         if ($listFeeds == 'show') {
-            $pb->assign('feedsView', $kf->getFeedsView());
+            $pb->assign('feedsView', $lf->getFeedsView());
         }
-        $pb->assign('lf',  $kf);
-        $pb->assign('pagetitle', strip_tags($kfc->title));
+        $pb->assign('lf',  $lf);
+        $pb->assign('pagetitle', strip_tags($lfc->title));
 
         $pb->renderPage('index');
     } else {
-        $pb->assign('pagetitle', 'Login - '.strip_tags($kfc->title));
+        $pb->assign('pagetitle', 'Login - '.strip_tags($lfc->title));
         if (!empty($_SERVER['QUERY_STRING'])) {
             $pb->assign('referer', MyTool::getUrl().'?'.$_SERVER['QUERY_STRING']);
         }

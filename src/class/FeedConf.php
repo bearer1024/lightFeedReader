@@ -156,7 +156,7 @@ class FeedConf
     public $pagingPage = 2;
     public $pagingByPage = 3;
     public $pagingMarkAs = 4;
-
+    
     /**
      * Constructor
      *
