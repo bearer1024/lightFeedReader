@@ -1,0 +1,20 @@
+{
+    "repositories": [
+        {
+	    "type": "package",
+	    "package": {
+		"name": "shaarli", 
+		"version": "1.0",
+		"source": {
+		    "url": "https://github.com/sebsauvage/Shaarli.git",
+		    "branches-path":"master",
+		    "type": "git",
+		    "reference": "master"
+		}
+	    }
+        }
+    ],
+    "require":{
+	"shaarli":"1.0"
+    }
+}

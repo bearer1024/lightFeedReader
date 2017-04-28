@@ -48,7 +48,7 @@ class FeedConf
     /**
      * Shaarli link
      */
-    public $shaarli = '';
+    public $shaarli = 'https://demo.shaarli.org/';
 
     /**
      * Max number of articles by channel
