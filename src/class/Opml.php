@@ -136,7 +136,7 @@ class Opml
         // generate opml file
         header('Content-Type: text/xml; charset=utf-8');
         header(
-            'Content-disposition: attachment; filename=kriss_feed_'
+            'Content-disposition: attachment; filename=lightRSS_feed_'
             . strval(date('Ymd_His')) . '.opml'
         );
         $opmlData = new DOMDocument('1.0', 'UTF-8');
