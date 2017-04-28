@@ -49,21 +49,7 @@
                     </div>
                   </div>
 
-                  <div class="control-group">
-                    <label class="control-label" for="redirector">Feed reader redirector (only for links, media are not considered, <strong>item content is anonymize only with javascript</strong>)</label>
-                    <div class="controls">
-                      <input type="text" id="redirector" name="redirector" value="<?php echo $kfcredirector; ?>">
-                      <span class="help-block"><strong>http://anonym.to/?</strong> will mask the HTTP_REFERER, you can also use <strong>noreferrer</strong> to use HTML5 property</span>
-                    </div>
-                  </div>
 
-                  <div class="control-group">
-                    <label class="control-label" for="disablesessionprotection">Session protection</label>
-                    <div class="controls">
-                      <label><input type="checkbox" id="disablesessionprotection" name="disableSessionProtection"<?php echo ($kfcdisablesessionprotection ? ' checked="checked"' : ''); ?>>Disable session cookie hijacking protection</label>
-                      <span class="help-block">Check this if you get disconnected often or if your IP address changes often.</span>
-                    </div>
-                  </div>
 
                   <div class="control-group">
                     <div class="controls">
@@ -104,76 +90,8 @@
                     </div>
                   </div>
 
-                  <div class="control-group">
-                    <label class="control-label">Auto read next page option</label>
-                    <div class="controls">
-                      <label for="donotautoreadpage">
-                        <input type="radio" id="donotautoreadpage" name="autoreadPage" value="0" <?php echo (!$kfcautoreadpage ? 'checked="checked"' : ''); ?>/>
-                        Do not mark as read when next page
-                      </label>
-                      <label for="autoreadpage">
-                        <input type="radio" id="autoreadpage" name="autoreadPage" value="1" <?php echo ($kfcautoreadpage ? 'checked="checked"' : ''); ?>/>
-                        Auto mark current as read when next page
-                      </label>
-                      <span class="help-block"><strong>Not implemented yet</strong></span>
-                    </div>
-                  </div>
 
-                  <div class="control-group">
-                    <label class="control-label">Auto hide option</label>
-                    <div class="controls">
-                      <label for="donotautohide">
-                        <input type="radio" id="donotautohide" name="autohide" value="0" <?php echo (!$kfcautohide ? 'checked="checked"' : ''); ?>/>
-                        Always show feed in feeds list
-                      </label>
-                      <label for="autohide">
-                        <input type="radio" id="autohide" name="autohide" value="1" <?php echo ($kfcautohide ? 'checked="checked"' : ''); ?>/>
-                        Automatically hide feed when 0 unread item
-                      </label>
-                    </div>
-                  </div>
 
-                  <div class="control-group">
-                    <label class="control-label">Auto focus option</label>
-                    <div class="controls">
-                      <label for="donotautofocus">
-                        <input type="radio" id="donotautofocus" name="autofocus" value="0" <?php echo (!$kfcautofocus ? 'checked="checked"' : ''); ?>/>
-                        Do not automatically jump to current item when it changes
-                      </label>
-                      <label for="autofocus">
-                        <input type="radio" id="autofocus" name="autofocus" value="1" <?php echo ($kfcautofocus ? 'checked="checked"' : ''); ?>/>
-                        Automatically jump to the current item position
-                      </label>
-                    </div>
-                  </div>
-
-                  <div class="control-group">
-                    <label class="control-label">Add favicon option</label>
-                    <div class="controls">
-                      <label for="donotaddfavicon">
-                        <input type="radio" id="donotaddfavicon" name="addFavicon" value="0" <?php echo (!$kfcaddfavicon ? 'checked="checked"' : ''); ?>/>
-                        Do not add favicon next to feed on list of feeds
-                      </label>
-                      <label for="addfavicon">
-                        <input type="radio" id="addfavicon" name="addFavicon" value="1" <?php echo ($kfcaddfavicon ? 'checked="checked"' : ''); ?>/>
-                        Add favicon next to feed on list of feeds<br><strong>Warning: It depends on http://getfavicon.appspot.com/ <?php if (in_array('curl', get_loaded_extensions())) { echo 'but it will cache favicon on your server'; } ?></strong>
-                      </label>
-                    </div>
-                  </div>
-
-                  <div class="control-group">
-                    <label class="control-label">Auto update with javascript</label>
-                    <div class="controls">
-                      <label for="donotautoupdate">
-                        <input type="radio" id="donotautoupdate" name="autoUpdate" value="0" <?php echo (!$kfcautoupdate ? 'checked="checked"' : ''); ?>/>
-                        Do not auto update with javascript
-                      </label>
-                      <label for="autoupdate">
-                        <input type="radio" id="autoupdate" name="autoUpdate" value="1" <?php echo ($kfcautoupdate ? 'checked="checked"' : ''); ?>/>
-                        Auto update with javascript
-                      </label>
-                    </div>
-                  </div>
 
                   <div class="control-group">
                     <div class="controls">
@@ -292,23 +210,6 @@
                       <span class="help-block">If you add a mark as read button into paging</span>
                     </div>
                   </div>
-                  <div class="control-group">
-                    <div class="controls">
-                      <input class="btn" type="submit" name="cancel" value="Cancel"/>
-                      <input class="btn" type="submit" name="save" value="Save" />
-                    </div>
-                  </div>
-                </fieldset>
-                <fieldset>
-                  <legend>Cron configuration</legend>
-                  <code><?php echo MyTool::getUrl().'?update&cron='.$kfccron; ?></code>
-                  You can use <code>&force</code> to force update.<br>
-                  To update every 15 minutes
-                  <code>*/15 * * * * wget "<?php echo MyTool::getUrl().'?update&cron='.$kfccron; ?>" -O /tmp/kf.cron</code><br>
-                  To update every hour
-                  <code>0 * * * * wget "<?php echo MyTool::getUrl().'?update&cron='.$kfccron; ?>" -O /tmp/kf.cron</code><br>
-                  If you can not use wget, you may try php command line :
-                  <code>0 * * * * php -f <?php echo $_SERVER["SCRIPT_FILENAME"].' update '.$kfccron; ?> > /tmp/kf.cron</code>
                   <div class="control-group">
                     <div class="controls">
                       <input class="btn" type="submit" name="cancel" value="Cancel"/>
