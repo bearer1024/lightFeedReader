@@ -1,54 +1,16 @@
 <?php
-/**
- * Session management class
- *
- * PHP version 5
- *
- * http://www.developpez.net/forums/d51943/php/langage/sessions/
- * http://sebsauvage.net/wiki/doku.php?id=php:session
- * http://sebsauvage.net/wiki/doku.php?id=php:shaarli
- *
- * Features:
- * - Everything is stored on server-side (we do not trust client-side data,
- *   such as cookie expiration)
- * - IP addresses + user agent are checked on each access to prevent session
- *   cookie hijacking (such as Firesheep)
- * - Session expires on user inactivity (Session expiration date is
- *   automatically updated everytime the user accesses a page.)
- * - A unique secret key is generated on server-side for this session
- *   (and never sent over the wire) which can be used
- *   to sign forms (HMAC) (See $_SESSION['uid'] )
- * - Token management to prevent XSRF attacks.
- *
- * - Just call Session::init(); to initialize session and
- *   check if connected with Session::isLogged()
- */
+/*session management class*/
 class Session
 {
-    /**
-     * Static session
-     */
+
     private static $_instance;
 
-    /**
-     * If the user does not access any page within this time,
-     * his/her session is considered expired (in seconds).
-     */
+
     public static $inactivityTimeout = 3600;
 
-    /**
-     * If you get disconnected often or if your IP address changes often.
-     * Let you disable session cookie hijacking protection
-     */
+
     public static $disableSessionProtection = false;
 
-    /**
-     * Ban management
-     * $banFile:     File storage for failures and bans.
-     * $banAfter:    Ban IP after this many failures.
-     * $banDuration: Ban duration for IP address after login failures
-     *               (in seconds) (1800 sec. = 30 minutes)
-     */
     public static $banFile = 'ipbans.php';
     public static $banAfter = 4;
     public static $banDuration = 1800;

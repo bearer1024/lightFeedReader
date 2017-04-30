@@ -1,9 +1,6 @@
 <?php
 /**
- * Useful php snippets
- *
- * PHP version 5
- *
+ * Useful php function tools
  * Features:
  * - initPHP, isUrl, isEmail, formatBBCode, formatText, getUrl, rrmdir,
  *   humanBytes, returnBytes, getMaxFileSize, smallHash
@@ -21,7 +18,7 @@ class MyTool
         define('START_TIME', microtime(true));
 
         if (phpversion() < 5) {
-            die("Argh you don't have PHP 5 !");
+            die("You don't have PHP 5 !");
         }
 
         error_reporting(E_ALL);
