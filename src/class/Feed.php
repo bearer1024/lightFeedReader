@@ -81,17 +81,17 @@ class Feed
                     );
                 return true;
             } else {
-                /*MyTool::smallHash('https://www.linux.com/feeds/tutorials/rss') => array(
-                'title' => 'linux.com tutorials',
-                        'foldersHash' => array(),
-                        'timeUpdate' => 'auto',
-                        'lastUpdate' => 0,
-                        'nbUnread' => 0,
-                        'nbAll' => 0,
-                        'htmlUrl' => 'https://www.linux.com/feeds/rss',
-                        'xmlUrl' => 'https://www.linux.com/feeds/rss',
-                        'description' => 'tutorials from linux.com')*/
-                $this->_data['feeds'] = array(
+                /**/
+                $this->_data['feeds'] = array(MyTool::smallHash('https://www.linux.com/feeds/tutorials/rss?rss') => array(
+                    'title' => 'linux.com tutorials',
+                    'foldersHash' => array(),
+                    'timeUpdate' => 'auto',
+                    'lastUpdate' => 0,
+                    'nbUnread' => 0,
+                    'nbAll' => 0,
+                    'htmlUrl' => 'https://www.linux.com/feeds/tutorials/rss',
+                    'xmlUrl' => 'https://www.linux.com/feeds/tutorials/rss',
+                    'description' => 'tutorials from linux.com')
                     );
                 $this->_data['folders'] = array();
                 $this->_data['items'] = array();

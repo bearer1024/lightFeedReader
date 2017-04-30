@@ -48,7 +48,7 @@ class FeedConf
     /**
      * Shaarli link
      */
-    public $shaarli = 'https://demo.shaarli.org/';
+    public $shaarli = 'http://localhost/lightFeedReader/vendor/shaarli/?post=${url}&title=${title}';
 
     /**
      * Max number of articles by channel
@@ -245,7 +245,7 @@ class FeedConf
                 echo '
 <script>
  alert("Your Light Feed Reader is now configured.");
- document.location="'.MyTool::getUrl().'?import'.'";
+ document.location="'.MyTool::getUrl().'?index'.'";
 </script>';
                     exit();
             } else {
