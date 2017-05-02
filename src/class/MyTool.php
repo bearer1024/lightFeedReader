@@ -4,7 +4,6 @@
  * Features:
  * - initPHP, isUrl, isEmail, formatBBCode, formatText, getUrl, rrmdir,
  *   humanBytes, returnBytes, getMaxFileSize, smallHash
- * TODO:
  *
  */
 class MyTool

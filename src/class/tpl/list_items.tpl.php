@@ -43,8 +43,6 @@
     <div id="item-div-<?php echo $itemHash; ?>" class="item collapse<?php echo (($view==='expanded' or ($currentItemHash == $itemHash and isset($_GET['open'])))?' in well':''); ?><?php echo ($itemHash==$currentItemHash?' current':''); ?>">
       <?php if ($view==='expanded' or ($currentItemHash == $itemHash and isset($_GET['open']))) { ?>
       <div class="item-title">
-          <a class="item-shaarli" href="http://localhost/lightFeedReader/vendor/shaarli/?post=<?php echo $item['link']?>"><span class="label">default share</span></a>
-        <a class="item-shaarli" href="<?php echo $query.'shaarli='.$itemHash; ?>"><span class="label">share</span></a>
         <?php if ($item['read'] == 1) { ?>
         <a class="item-mark-as" href="<?php echo $query.'unread='.$itemHash; ?>"><span class="label item-label-mark-as">unread</span></a>
         <?php } else { ?>
@@ -69,7 +67,9 @@
         <?php echo $item['content']; ?>
       </article></div>
       <div class="item-info-end">
-        <a class="item-shaarli" href="<?php echo $query.'shaarli='.$itemHash; ?>"><span class="label label-expanded">share</span></a>
+        <a href="http://www.facebook.com/sharer.php?u=<?php echo $item['link'] ?>" target="_blank" title="Share this page on Facebook"><span class="label label-expanded">Facebook</span></a>
+        <a href="http://twitter.com/share?url=<?php echo $item['link'] ?>&text=<?php echo $item['title']; ?>" target="_blank" title="Share this page on Twitter"><span class="label label-expanded">Twitter</span></a>
+        <a class="item-shaarli" href="<?php echo $query.'shaarli='.$itemHash; ?>"><span class="label label-expanded">Sharrli</span></a>
         <?php if ($item['read'] == 1) { ?>
         <a class="item-mark-as" class="link-mark" href="<?php echo $query.'unread='.$itemHash; ?>"><span class="label label-expanded">unread</span></a>
         <?php } else { ?>
