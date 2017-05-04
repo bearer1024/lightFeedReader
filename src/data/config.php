@@ -1,7 +1,7 @@
 <?php
 $this->login = "test";
-$this->hash = "97b7715518a4927029f0d6cde6d81fe9573da644";
-$this->salt = "079dadf4a79bc717c7c579c1788a1befa2013912";
+$this->hash = "0c2d90200af9933e0a43d7ca6e0a5bb3bc179f70";
+$this->salt = "08ee35d8051f74fa43680b14ceae43f88596acde";
 $this->title = "Light feed reader";
 $this->redirector = "";
 $this->shaarli = "http://localhost/lightFeedReader/vendor/shaarli/?post=\${url}&title=\${title}";
