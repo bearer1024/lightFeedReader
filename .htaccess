@@ -1,0 +1,7 @@
+RewriteEngine On
+RewriteCond %{HTTP_HOST} ^feedreader.me
+RewriteRule (.*) http://www.feedreader.me/$1 [R=301,L]
+
+RewriteCond %{HTTP_HOST} ^www\.feedreader\.me$
+RewriteCond %{REQUEST_URI} !^/lightFeedReader/
+RewriteRule (.*) /lightFeedReader/$1 [R=301,L]
