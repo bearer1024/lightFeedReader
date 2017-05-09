@@ -245,13 +245,7 @@ if (isset($_GET['login'])) {
     $pb->assign('pagetitle', 'Help for light feed reader');
     $pb->renderPage('help');
 } elseif ((isset($_GET['update'])
-          && (Session::isLogged()
-              || (isset($_GET['cron'])
-                  && $_GET['cron'] === sha1($lfc->salt.$lfc->hash))))
-          || (isset($argv)
-              && count($argv) >= 3
-              && $argv[1] == 'update'
-              && $argv[2] == sha1($lfc->salt.$lfc->hash))) {
+          && (Session::isLogged()))){
     // Update
     $lf->loadData();
     $forceUpdate = false;
@@ -280,15 +274,11 @@ if (isset($_GET['login'])) {
     default:
         break;
     }
-    if (isset($_GET['cron']) || isset($argv) && count($argv) >= 3) {
-        $lf->updateFeedsHash($feedsHash, $forceUpdate);
-    } else {
         $pb->assign('lf', $lf);
         $pb->assign('feedsHash', $feedsHash);
         $pb->assign('forceUpdate', $forceUpdate);
         $pb->assign('pagetitle', 'Update');
         $pb->renderPage('update');
-    }
 } elseif (isset($_GET['config']) && Session::isLogged()) {
     // Config
     if (isset($_POST['save'])) {

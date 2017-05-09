@@ -112,7 +112,7 @@ class Feed
      */
     public function writeData()
     {
-        if (Session::isLogged() || (isset($_GET['cron']) && $_GET['cron'] === sha1($this->lfc->salt.$this->lfc->hash))) {
+        if (Session::isLogged()) {
             $write = @file_put_contents(
                 $this->dataFile,
                 PHPPREFIX
@@ -333,7 +333,7 @@ class Feed
      */
     public function writeFeed($feedHash, $feed)
     {
-        if (Session::isLogged() || (isset($_GET['cron']) && $_GET['cron'] === sha1($this->lfc->salt.$this->lfc->hash))) {
+        if (Session::isLogged()) {
             if (!is_dir($this->cacheDir)) {
                 if (!@mkdir($this->cacheDir, 0755)) {
                     die("Can not create cache dir: ".$this->cacheDir);
