@@ -440,7 +440,7 @@ class Feed
     public function addFolder($folderTitle, $newFolderHash = '')
     {
         if (empty($newFolderHash)) {
-            $newFolderHash = MyTool::smallHash($newFolderTitle);
+            $newFolderHash = MyTool::smallHash($folderTitle);
         }
         $this->_data['folders'][$newFolderHash] = array(
             'title' => $folderTitle,

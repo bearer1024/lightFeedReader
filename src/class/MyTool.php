@@ -11,6 +11,7 @@ class MyTool
     /**
      * Test if php version is greater than 5, set error reporting, deal
      * with magic quotes for POST, GET and COOKIE and initialize bufferization
+     * http://php.net/manual/en/function.get-magic-quotes-gpc.php
      */
     public static function initPhp()
     {

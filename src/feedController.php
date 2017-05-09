@@ -372,6 +372,7 @@ if (isset($_GET['login'])) {
             $folders = array();
             if (!empty($_POST['folders'])) {
                 foreach ($_POST['folders'] as $hashFolder) {
+                    //add $hashFolder onto the end of folders[] array
                     $folders[] = $hashFolder;
                 }
             }
