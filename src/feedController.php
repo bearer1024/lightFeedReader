@@ -297,23 +297,23 @@ if (isset($_GET['login'])) {
 
         $pb->assign('page', 'config');
         $pb->assign('pagetitle', 'Config - '.strip_tags($lfc->title));
-        $pb->assign('kfctitle', htmlspecialchars($lfc->title));
-        $pb->assign('kfcredirector', htmlspecialchars($lfc->redirector));
-        $pb->assign('kfcshaarli', htmlspecialchars($lfc->shaarli));
-        $pb->assign('kfclocale', htmlspecialchars($lfc->locale));
-        $pb->assign('kfcmaxitems', htmlspecialchars($lfc->maxItems));
-        $pb->assign('kfcmaxupdate', htmlspecialchars($lfc->maxUpdate));
-        $pb->assign('kfcpublic', (int) $lfc->public);
-        $pb->assign('kfccron', sha1($lfc->salt.$lfc->hash));
-        $pb->assign('kfcautoreaditem', (int) $lfc->autoreadItem);
-        $pb->assign('kfcautoreadpage', (int) $lfc->autoreadPage);
-        $pb->assign('kfcautoupdate', (int) $lfc->autoUpdate);
-        $pb->assign('kfcautohide', (int) $lfc->autohide);
-        $pb->assign('kfcautofocus', (int) $lfc->autofocus);
-        $pb->assign('kfcaddfavicon', (int) $lfc->addFavicon);
-        $pb->assign('kfcdisablesessionprotection', (int) $lfc->disableSessionProtection);
-        $pb->assign('kfcmenu', $menu);
-        $pb->assign('kfcpaging', $paging);
+        $pb->assign('lfctitle', htmlspecialchars($lfc->title));
+        $pb->assign('lfcredirector', htmlspecialchars($lfc->redirector));
+        $pb->assign('lfcshaarli', htmlspecialchars($lfc->shaarli));
+        $pb->assign('lfclocale', htmlspecialchars($lfc->locale));
+        $pb->assign('lfcmaxitems', htmlspecialchars($lfc->maxItems));
+        $pb->assign('lfcmaxupdate', htmlspecialchars($lfc->maxUpdate));
+        $pb->assign('lfcpublic', (int) $lfc->public);
+        $pb->assign('lfccron', sha1($lfc->salt.$lfc->hash));
+        $pb->assign('lfcautoreaditem', (int) $lfc->autoreadItem);
+        $pb->assign('lfcautoreadpage', (int) $lfc->autoreadPage);
+        $pb->assign('lfcautoupdate', (int) $lfc->autoUpdate);
+        $pb->assign('lfcautohide', (int) $lfc->autohide);
+        $pb->assign('lfcautofocus', (int) $lfc->autofocus);
+        $pb->assign('lfcaddfavicon', (int) $lfc->addFavicon);
+        $pb->assign('lfcdisablesessionprotection', (int) $lfc->disableSessionProtection);
+        $pb->assign('lfcmenu', $menu);
+        $pb->assign('lfcpaging', $paging);
 
         $pb->renderPage('config');
     }

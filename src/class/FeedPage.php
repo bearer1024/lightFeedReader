@@ -1,6 +1,6 @@
 <?php
 /**
- * FeedPage
+ * FeedPage is the view class
  */
 class FeedPage
 {

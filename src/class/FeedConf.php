@@ -68,7 +68,7 @@ class FeedConf
     /**
      * Mark as read when next item
      */
-    public $autoreadItem = false;
+    public $autoreadItem = true;
 
     /**
      * Mark as read when next page
@@ -78,7 +78,7 @@ class FeedConf
     /**
      * Autoupdate with javascript
      */
-    public $autoUpdate = false;
+    public $autoUpdate = true;
 
     /**
      * Hide feed with 0 item in list feeds

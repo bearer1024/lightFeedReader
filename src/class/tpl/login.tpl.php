@@ -35,7 +35,8 @@
                   </div>
                 </div>
               </fieldset>
-              <input type="hidden" name="token" value="<?php echo Session::getToken(); ?>">
+                <input type="hidden" name="returnurl" value="<?php echo htmlspecialchars($referer);?>">
+                <input type="hidden" name="token" value="<?php echo Session::getToken(); ?>">
             </form>
             <?php FeedPage::statusTpl(); ?>
           </div>
