@@ -48,7 +48,7 @@ class FeedConf
     /**
      * Shaarli link
      */
-    public $shaarli = 'http://localhost/lightFeedReader/vendor/shaarli/?post=${url}&title=${title}';
+    public $shaarli = 'http://52.88.163.142/lightFeedReader/vendor/shaarli/?post=${url}&title=${title}';
 
     /**
      * Max number of articles by channel
