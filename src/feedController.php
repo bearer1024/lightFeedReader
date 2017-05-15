@@ -207,7 +207,8 @@ if (isset($_GET['login'])) {
             }
         }
         $i = 0;
-        foreach(array_slice($results, $firstIndex + 1, count($results) - $firstIndex - 1, true) as $itemHash => $item) {
+        foreach(array_slice($results, $firstIndex + 1,
+            count($results) - $firstIndex - 1, true) as $itemHash => $item) {
             $result['page'][$i] = $lf->getItem($itemHash, false);
             $result['page'][$i]['read'] = $item[1];
             $i++;
@@ -220,7 +221,8 @@ if (isset($_GET['login'])) {
                 $feedsHash = $lf->orderFeedsForUpdate(array_keys($lf->getFeeds()));
                 foreach ($feedsHash as $feedHash) {
                     $feed = $lf->getFeed($feedHash);
-                    $result['update']['feeds'][] = array($feedHash, $feed['title'], (int) ((time() - $feed['lastUpdate']) / 60), $lf->getTimeUpdate($feed));
+                    $result['update']['feeds'][] = array($feedHash, $feed['title'],
+                        (int) ((time() - $feed['lastUpdate']) / 60), $lf->getTimeUpdate($feed));
                 }
             } else {
                 $feed = $lf->getFeed($_GET['update']);

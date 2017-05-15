@@ -10,7 +10,7 @@
             <div id="section">
               <form class="form-horizontal" method="post" action="">
                 <input type="hidden" name="token" value="<?php echo Session::getToken(); ?>">
-                <input type="hidden" name="returnurl" value="<?php echo $referer; ?>" />
+                    <input type="hidden" name="returnurl" value="<?php echo $referer; ?>" />
                 <fieldset>
                   <legend>LIGHT feed Reader information</legend>
 
@@ -37,7 +37,11 @@
 
                   <div class="control-group">
                     <label class="control-label" for="shaarli">Shaarli url</label>
-                  <div class="control-group">
+                    <div class="controls">
+                        <input type="text" id="shaarli" name="shaarli" value="<?php echo $lfcshaarli; ?>">
+                    </div>
+                  </div>
+                      <div class="control-group">
                     <label class="control-label" for="menuView">View</label>
                     <div class="controls">
                       <input type="text" id="menuView" name="menuView" value="<?php echo empty($lfcmenu['menuView'])?'0':$lfcmenu['menuView']; ?>">

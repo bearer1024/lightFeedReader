@@ -67,8 +67,10 @@
         <?php echo $item['content']; ?>
       </article></div>
       <div class="item-info-end">
-        <a href="http://www.facebook.com/sharer.php?u=<?php echo $item['link'] ?>" target="_blank" title="Share this page on Facebook"><span class="label label-expanded">Facebook</span></a>
-        <a href="http://twitter.com/share?url=<?php echo $item['link'] ?>&text=<?php echo $item['title']; ?>" target="_blank" title="Share this page on Twitter"><span class="label label-expanded">Twitter</span></a>
+        <a href="http://www.facebook.com/sharer.php?u=<?php echo $item['link'] ?>"
+           target="_blank" title="Share this page on Facebook"><span class="label label-expanded">Facebook</span></a>
+        <a href="http://twitter.com/share?url=<?php echo $item['link'] ?>&text=<?php echo $item['title']; ?>"
+           target="_blank" title="Share this page on Twitter"><span class="label label-expanded">Twitter</span></a>
         <a class="item-shaarli" href="<?php echo $query.'shaarli='.$itemHash; ?>"><span class="label label-expanded">Sharrli</span></a>
         <?php if ($item['read'] == 1) { ?>
         <a class="item-mark-as" class="link-mark" href="<?php echo $query.'unread='.$itemHash; ?>"><span class="label label-expanded">unread</span></a>

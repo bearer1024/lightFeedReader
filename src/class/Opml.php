@@ -8,10 +8,10 @@ class Opml
      * Import feed from opml file (as exported by google reader,
      * tiny tiny rss, rss lounge... using
      */
-    public static function importOpml($kfData)
+    public static function importOpml($lfData)
     {
-        $feeds = $kfData['feeds'];
-        $folders = $kfData['folders'];
+        $feeds = $lfData['feeds'];
+        $folders = $lfData['folders'];
 
         $filename  = $_FILES['filetoupload']['name'];
         $filesize  = $_FILES['filetoupload']['size'];
@@ -100,10 +100,10 @@ class Opml
                 . ') was successfully processed: ' . $importCount
                 . ' links imported.");document.location=\'?\';</script>';
 
-            $kfData['feeds'] = $feeds;
-            $kfData['folders'] = $folders;
+            $lfData['feeds'] = $feeds;
+            $lfData['folders'] = $folders;
 
-            return $kfData;
+            return $lfData;
         } else {
             echo '<script>alert("File ' . htmlspecialchars($filename) . ' ('
                 . MyTool::humanBytes($filesize) . ') has an unknown'
@@ -201,32 +201,32 @@ class Opml
             $outline->appendChild($outlineText);
 
             foreach ($arrayHashUrl as $hashUrl) {
-                $outlineKF = $opmlData->createElement('outline');
+                $outlinelf = $opmlData->createElement('outline');
                 $outlineTitle = $opmlData->createAttribute('title');
                 $outlineTitle->value
                     = htmlspecialchars($feeds[$hashUrl]['title']);
-                $outlineKF->appendChild($outlineTitle);
+                $outlinelf->appendChild($outlineTitle);
                 $outlineText = $opmlData->createAttribute('text');
                 $outlineText->value
                     = htmlspecialchars($feeds[$hashUrl]['title']);
-                $outlineKF->appendChild($outlineText);
+                $outlinelf->appendChild($outlineText);
                 if (!empty($feeds[$hashUrl]['description'])) {
                     $outlineDescription
                         = $opmlData->createAttribute('description');
                     $outlineDescription->value = htmlspecialchars(
                         $feeds[$hashUrl]['description']
                     );
-                    $outlineKF->appendChild($outlineDescription);
+                    $outlinelf->appendChild($outlineDescription);
                 }
                 $outlineXmlUrl = $opmlData->createAttribute('xmlUrl');
                 $outlineXmlUrl->value
                     = htmlspecialchars($feeds[$hashUrl]['xmlUrl']);
-                $outlineKF->appendChild($outlineXmlUrl);
+                $outlinelf->appendChild($outlineXmlUrl);
                 $outlineHtmlUrl = $opmlData->createAttribute('htmlUrl');
                 $outlineHtmlUrl->value
                     = htmlspecialchars($feeds[$hashUrl]['htmlUrl']);
-                $outlineKF->appendChild($outlineHtmlUrl);
-                $outline->appendChild($outlineKF);
+                $outlinelf->appendChild($outlineHtmlUrl);
+                $outline->appendChild($outlinelf);
             }
             $body->appendChild($outline);
         }
